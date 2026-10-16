@@ -9,6 +9,12 @@ export default defineConfig({
   site: 'https://elvhack.com',
   output: 'static',
   integrations: [mdx(), sitemap()],
+  vite: {
+    build: {
+      // lightningcss 会把 animation-timeline 合并进 animation 简写，Chrome 判为无效，滚动驱动动画全部失效；换用 esbuild 压缩
+      cssMinify: 'esbuild',
+    },
+  },
   markdown: {
     shikiConfig: {
       themes: { light: 'github-light', dark: 'github-dark' },

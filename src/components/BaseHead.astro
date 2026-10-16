@@ -55,6 +55,9 @@ const jsonLd = article
         theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       }
       document.documentElement.dataset.theme = theme;
+      try {
+        if (localStorage.getItem('crt') === 'on') document.documentElement.classList.add('crt');
+      } catch {}
     };
     apply();
     if (!window.__themeBound) {
@@ -62,6 +65,7 @@ const jsonLd = article
       // 页面切换时把当前主题带到新文档上，避免闪烁
       document.addEventListener('astro:before-swap', (event) => {
         event.newDocument.documentElement.dataset.theme = document.documentElement.dataset.theme;
+        event.newDocument.documentElement.classList.toggle('crt', document.documentElement.classList.contains('crt'));
       });
     }
   })();
@@ -75,7 +79,7 @@ const jsonLd = article
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <link rel="alternate" type="application/rss+xml" title={`${site.title} RSS`} href="/rss.xml" />
 <link rel="sitemap" href="/sitemap-index.xml" />
-<meta name="theme-color" content="#f2f0ea" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)" />
 <meta name="theme-color" content="#0a0b0d" media="(prefers-color-scheme: dark)" />
 
 <meta property="og:site_name" content={site.title} />

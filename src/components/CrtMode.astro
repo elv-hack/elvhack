@@ -1,0 +1,254 @@
+---
+/**
+ * 彩蛋：CRT 模式。Konami 秘籍（↑↑↓↓←→←→BA）或 ⌘K 面板里的“CRT 模式”开关。
+ * 整站换成绿色荧光单色终端：等宽字体、扫描线、辉光、色散、暗角与缓慢滚动的刷新带。
+ * 状态记在 localStorage，页面加载时由 <head> 里的脚本提前加上 .crt，避免闪烁。
+ */
+---
+
+<crt-mode>
+  <div class="crt-overlay" aria-hidden="true"></div>
+  <div class="crt-boot" aria-hidden="true"></div>
+  <p class="crt-toast mono" role="status" aria-live="polite"></p>
+</crt-mode>
+
+<style is:global>
+  :root.crt.crt {
+    color-scheme: dark;
+    --bg: #040904;
+    --bg-elev: #081208;
+    --fg: #b9ff86;
+    --fg-muted: #74c24f;
+    --fg-faint: #3f7a2c;
+    --line: rgb(185 255 134 / 0.14);
+    --line-strong: rgb(185 255 134 / 0.32);
+    --accent: #e4ff9c;
+    --accent-ink: #e4ff9c;
+    --accent-2: #52ffb0;
+    --on-accent: #040904;
+    --code-bg: #071007;
+    --grain-opacity: 0.1;
+    --font-body: var(--font-mono);
+    --font-serif: var(--font-mono);
+    --font-display: var(--font-mono);
+  }
+
+  :root.crt body {
+    /* 荧光辉光 + 红青色散 */
+    text-shadow:
+      0 0 1px currentColor,
+      0 0 10px color-mix(in oklab, var(--fg) 35%, transparent),
+      -0.7px 0 rgb(255 40 90 / 0.35),
+      0.7px 0 rgb(40 220 255 / 0.35);
+  }
+
+  :root.crt :is(.prose img, video) {
+    filter: sepia(1) hue-rotate(50deg) saturate(2.4) brightness(0.9);
+  }
+
+  crt-mode .crt-overlay,
+  crt-mode .crt-boot {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    pointer-events: none;
+    display: none;
+  }
+
+  :root.crt crt-mode .crt-overlay {
+    display: block;
+    background:
+      repeating-linear-gradient(to bottom, rgb(0 0 0 / 0.32) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at center, transparent 58%, rgb(0 0 0 / 0.6) 100%);
+    box-shadow: inset 0 0 140px rgb(0 0 0 / 0.75);
+    animation: crt-flicker 5s steps(1) infinite;
+  }
+
+  /* 缓慢下移的刷新带 */
+  :root.crt crt-mode .crt-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 28vh;
+    background: linear-gradient(to bottom, transparent, rgb(185 255 134 / 0.05), transparent);
+    animation: crt-roll 8s linear infinite;
+  }
+
+  @keyframes crt-flicker {
+    0% {
+      opacity: 0.96;
+    }
+    7% {
+      opacity: 0.88;
+    }
+    9% {
+      opacity: 1;
+    }
+    48% {
+      opacity: 0.94;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes crt-roll {
+    from {
+      transform: translateY(-30vh);
+    }
+    to {
+      transform: translateY(110vh);
+    }
+  }
+
+  /* 开机：一条亮线展开成整屏；关机：反过来收成一个点 */
+  crt-mode .crt-boot {
+    background: #d8ffb8;
+    transform-origin: center;
+  }
+
+  crt-mode .crt-boot[data-run='on'] {
+    display: block;
+    animation: crt-on 0.65s ease-out forwards;
+  }
+
+  crt-mode .crt-boot[data-run='off'] {
+    display: block;
+    animation: crt-off 0.5s ease-in forwards;
+  }
+
+  @keyframes crt-on {
+    0% {
+      transform: scale(0, 0.004);
+      opacity: 1;
+    }
+    35% {
+      transform: scale(1, 0.004);
+      opacity: 1;
+    }
+    70% {
+      transform: scale(1, 1);
+      opacity: 0.5;
+    }
+    100% {
+      transform: scale(1, 1);
+      opacity: 0;
+    }
+  }
+
+  @keyframes crt-off {
+    0% {
+      transform: scale(1, 1);
+      opacity: 0;
+    }
+    30% {
+      transform: scale(1, 0.004);
+      opacity: 1;
+    }
+    75% {
+      transform: scale(0.002, 0.004);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0, 0);
+      opacity: 0;
+    }
+  }
+
+  crt-mode .crt-toast {
+    position: fixed;
+    left: 50%;
+    bottom: var(--space-6);
+    z-index: 120;
+    padding: 0.55em 1.1em;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--bg-elev);
+    color: var(--fg);
+    font-size: var(--step--1);
+    transform: translate(-50%, 20px);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity 0.3s,
+      transform 0.3s var(--ease-out);
+  }
+
+  crt-mode .crt-toast[data-show] {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root.crt crt-mode .crt-overlay,
+    :root.crt crt-mode .crt-overlay::after {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+
+  class CrtMode extends HTMLElement {
+    #progress = 0;
+    #toastTimer = 0;
+
+    connectedCallback() {
+      document.addEventListener('keydown', this.#onKey);
+      document.addEventListener('crt:toggle', this.#toggle);
+    }
+
+    disconnectedCallback() {
+      document.removeEventListener('keydown', this.#onKey);
+      document.removeEventListener('crt:toggle', this.#toggle);
+    }
+
+    #onKey = (event: KeyboardEvent) => {
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      this.#progress = key === KONAMI[this.#progress] ? this.#progress + 1 : key === KONAMI[0] ? 1 : 0;
+      if (this.#progress === KONAMI.length) {
+        this.#progress = 0;
+        this.#toggle();
+      }
+    };
+
+    #toggle = () => {
+      const root = document.documentElement;
+      const on = !root.classList.contains('crt');
+      try {
+        localStorage.setItem('crt', on ? 'on' : 'off');
+      } catch {}
+
+      const boot = this.querySelector<HTMLElement>('.crt-boot')!;
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const apply = () => {
+        root.classList.toggle('crt', on);
+        // 让各个 canvas / WebGL 背景重新读取颜色
+        document.dispatchEvent(new CustomEvent('themechange', { detail: root.dataset.theme }));
+      };
+
+      if (reduce) {
+        apply();
+      } else if (on) {
+        apply();
+        boot.dataset.run = 'on';
+      } else {
+        boot.dataset.run = 'off';
+        setTimeout(apply, 220);
+      }
+      boot.addEventListener('animationend', () => delete boot.dataset.run, { once: true });
+      this.#toast(on ? 'CRT 模式 · 已开机　再输入一次秘籍关闭' : 'CRT 模式 · 已关机');
+    };
+
+    #toast(text: string) {
+      const toast = this.querySelector<HTMLElement>('.crt-toast')!;
+      toast.textContent = text;
+      toast.toggleAttribute('data-show', true);
+      clearTimeout(this.#toastTimer);
+      this.#toastTimer = window.setTimeout(() => toast.removeAttribute('data-show'), 2400);
+    }
+  }
+
+  if (!customElements.get('crt-mode')) customElements.define('crt-mode', CrtMode);
+</script>

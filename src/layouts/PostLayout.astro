@@ -2,6 +2,7 @@
 import type { MarkdownHeading } from 'astro';
 import '@/styles/prose.css';
 
+import AmbientField from '@/components/AmbientField.astro';
 import Cover from '@/components/Cover.astro';
 import Giscus from '@/components/Giscus.astro';
 import Toc from '@/components/Toc.astro';
@@ -27,6 +28,7 @@ const { code, style } = postCover(post);
   image={`/og/${post.id.replaceAll('/', '--')}.png`}
   article={{ published: pubDate, modified: updatedDate, tags }}
 >
+  <AmbientField slot="backdrop" />
   <div class="progress" aria-hidden="true"></div>
 
   <article class="container post">

@@ -32,20 +32,21 @@
   --radius: 3px;
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
 
-  /* light */
+  /* light：纸张印刷——暖白纸、暖墨、国际橙 + 套印蓝 */
   color-scheme: light;
-  --bg: #f2f0ea;
-  --bg-elev: #fbfaf6;
-  --fg: #121314;
-  --fg-muted: #57585a;
-  --fg-faint: #a2a29c;
-  --line: rgb(18 19 20 / 0.12);
-  --line-strong: rgb(18 19 20 / 0.28);
-  --accent: #c6ff3d;
-  --accent-ink: #477500;
-  --on-accent: #121314;
-  --code-bg: #e9e6dd;
-  --grain-opacity: 0.05;
+  --bg: #f3efe6;
+  --bg-elev: #fbf9f4;
+  --fg: #161412;
+  --fg-muted: #5c5750;
+  --fg-faint: #a8a196;
+  --line: rgb(22 20 18 / 0.12);
+  --line-strong: rgb(22 20 18 / 0.28);
+  --accent: #ff5a1f;
+  --accent-ink: #c23400;
+  --accent-2: #2a5d8f;
+  --on-accent: #161412;
+  --code-bg: #ebe5d8;
+  --grain-opacity: 0.075;
 }
 
 :root[data-theme='dark'] {
@@ -59,6 +60,7 @@
   --line-strong: rgb(236 235 230 / 0.26);
   --accent: #c6ff3d;
   --accent-ink: #c6ff3d;
+  --accent-2: #1fb5a5;
   --on-accent: #0a0b0d;
   --code-bg: #121418;
   --grain-opacity: 0.07;
@@ -77,6 +79,7 @@
     --line-strong: rgb(236 235 230 / 0.26);
     --accent: #c6ff3d;
     --accent-ink: #c6ff3d;
+    --accent-2: #1fb5a5;
     --on-accent: #0a0b0d;
     --code-bg: #121418;
     --grain-opacity: 0.07;

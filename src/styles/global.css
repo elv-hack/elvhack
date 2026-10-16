@@ -332,3 +332,64 @@ dialog.lightbox img {
   color: var(--fg-muted);
   text-align: center;
 }
+
+/* ---- 动效打磨 ---- */
+
+/* 按下时的微小回弹 */
+:is(.row, .card, .featured, .tag-cloud a, .pager a, button):active {
+  transform: scale(0.985);
+}
+
+:is(.card, .featured, .tag-cloud a, .pager a, button) {
+  transition-property: transform, background-color, border-color, color, opacity;
+  transition-duration: 0.18s;
+}
+
+/* 滚动出现：列表项、卡片、状态格依次浮现；不支持滚动驱动动画的浏览器直接显示 */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+}
+
+@keyframes grow-line {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    :is(.post-list > li, .lab-grid > li, .status > .cell, .tag-cloud > li, .featured, .prose :is(.figure, .code-block, .experiment, .callout, table)) {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 70%;
+    }
+
+    /* 同一行的卡片错开一点 */
+    :is(.lab-grid, .status) > :nth-child(2) {
+      animation-range: entry 6% entry 76%;
+    }
+
+    :is(.lab-grid, .status) > :nth-child(3) {
+      animation-range: entry 12% entry 82%;
+    }
+
+    :is(.lab-grid, .status) > :nth-child(4) {
+      animation-range: entry 18% entry 88%;
+    }
+
+    /* 区块标题的横线从左向右延展 */
+    .section-head {
+      view-timeline: --head block;
+    }
+
+    .section-head::after {
+      transform-origin: left;
+      animation: grow-line linear both;
+      animation-timeline: --head;
+      animation-range: entry 20% cover 40%;
+    }
+  }
+}

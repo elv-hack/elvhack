@@ -37,6 +37,13 @@ cover: ridge              # 可选：flow / moire / ridge / halftone，不填由
 
 新的实验组件放在 `src/components/mdx/`，再到 `src/pages/posts/[...slug].astro` 的 `components` 里注册。
 
+## 交互与彩蛋
+
+- `⌘K` / `Ctrl K` / `/`：命令面板，页面跳转、全文搜索（Pagefind，构建时生成索引）、切换主题、开关文章背景特效
+- 文章页背景“星云漂流”（`src/components/AmbientField.astro`）：滚动即航行，可在命令面板里关闭
+- 实验室 `/lab`：实验注册在 `src/lab/registry.ts`，组件放在 `src/lab/`
+- 彩蛋：Konami 秘籍 ↑↑↓↓←→←→BA，或命令面板里的“CRT 模式”
+
 ## 结构
 
 | 路径 | 说明 |

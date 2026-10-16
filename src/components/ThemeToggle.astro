@@ -24,6 +24,18 @@
     display: none;
   }
 
+  svg {
+    transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  button:hover svg {
+    transform: rotate(-25deg);
+  }
+
+  button:active svg {
+    transform: rotate(-90deg) scale(0.85);
+  }
+
   :global([data-theme='dark']) .sun {
     display: none;
   }

@@ -95,13 +95,13 @@ function flow(rand: () => number): string {
       if (x < -10 || x > COVER_W + 10 || y < -10 || y > COVER_H + 10) break;
       d += `L${r(x)} ${r(y)}`;
     }
-    if (i % 9 === 0) accent += d;
-    else ink += d;
+    if (i % 9 === 0) accent += `<path d="${d}" pathLength="1"/>`;
+    else ink += `<path d="${d}" pathLength="1"/>`;
   }
   return (
     `<g fill="none" stroke-linecap="round" stroke-linejoin="round">` +
-    `<path d="${ink}" stroke="currentColor" stroke-opacity=".4" stroke-width="1.2"/>` +
-    `<path d="${accent}" ${ACCENT_STROKE} stroke-width="2.2"/></g>`
+    `<g stroke="currentColor" stroke-opacity=".4" stroke-width="1.2">${ink}</g>` +
+    `<g ${ACCENT_STROKE} stroke-width="2.2">${accent}</g></g>`
   );
 }
 
@@ -114,7 +114,7 @@ function moire(rand: () => number): string {
   const step = 12 + rand() * 6;
   const rings = (cx: number, cy: number) => {
     let out = '';
-    for (let radius = step; radius < 900; radius += step) out += `<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(radius)}"/>`;
+    for (let radius = step; radius < 900; radius += step) out += `<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(radius)}" pathLength="1"/>`;
     return out;
   };
   return (
@@ -155,7 +155,7 @@ function ridge(rand: () => number): string {
     const stroke = li === accentLine ? 'stroke:var(--cover-accent,#c6ff3d);stroke-width:2.2' : 'stroke:currentColor;stroke-opacity:.7;stroke-width:1.3';
     const out1 = COVER_W + 100;
     const ground = COVER_H + 100;
-    out += `<path d="${d}H${out1}V${ground}H-100V${r(y0)}Z" style="fill:var(--cover-bg,#121418);${stroke}"/>`;
+    out += `<path d="${d}H${out1}V${ground}H-100V${r(y0)}Z" pathLength="1" style="fill:var(--cover-bg,#121418);${stroke}"/>`;
   }
   return `<g stroke-linejoin="round">${out}</g>`;
 }
@@ -204,13 +204,13 @@ function lissajous(rand: () => number): string {
       const y = COVER_H / 2 + Math.sin(b * t) * COVER_H * 0.38 * k;
       d += `${i === 0 ? 'M' : 'L'}${r(x)} ${r(y)}`;
     }
-    if (layer === 2) accent += d;
-    else ink += d;
+    if (layer === 2) accent += `<path d="${d}" pathLength="1"/>`;
+    else ink += `<path d="${d}" pathLength="1"/>`;
   }
   return (
     `<g fill="none" stroke-linejoin="round">` +
-    `<path d="${ink}" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/>` +
-    `<path d="${accent}" ${ACCENT_STROKE} stroke-width="2.2"/></g>`
+    `<g stroke="currentColor" stroke-opacity=".45" stroke-width="1.2">${ink}</g>` +
+    `<g ${ACCENT_STROKE} stroke-width="2.2">${accent}</g></g>`
   );
 }
 

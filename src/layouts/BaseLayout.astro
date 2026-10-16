@@ -6,6 +6,7 @@ import '@/styles/global.css';
 
 import BaseHead, { type Props as HeadProps } from '@/components/BaseHead.astro';
 import CommandPalette from '@/components/CommandPalette.astro';
+import CrtMode from '@/components/CrtMode.astro';
 import Footer from '@/components/Footer.astro';
 import Header from '@/components/Header.astro';
 import { site } from '@/site.config';
@@ -27,12 +28,14 @@ const pageTransition = { forwards: pageMotion, backwards: pageMotion };
   </head>
   <body>
     <div id="nav-progress" aria-hidden="true" transition:persist></div>
+    <slot name="backdrop" />
     <Header />
     <main id="main" transition:animate={pageTransition}>
       <slot />
     </main>
     <Footer />
     <CommandPalette />
+    <CrtMode />
   </body>
 </html>
 
