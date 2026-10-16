@@ -15,12 +15,12 @@ export const site = {
   social: {
     github: 'https://github.com/vx-zjr',
   },
-  // 评论：在仓库开启 Discussions 并安装 giscus App 后，
-  // 到 https://giscus.app/zh-CN 生成 repoId / categoryId 填进来即可启用。
+  // 评论：仓库需开启 Discussions 并安装 giscus App（https://github.com/apps/giscus）。
+  // ID 可在 https://giscus.app/zh-CN 查到；清空 repoId 或 categoryId 即关闭评论区。
   giscus: {
     repo: 'vx-zjr/elvhack',
-    repoId: '',
+    repoId: 'R_kgDOS5Xtkg',
     category: 'Announcements',
-    categoryId: '',
+    categoryId: 'DIC_kwDOS5Xtks4DIk-x',
   },
 } as const;
