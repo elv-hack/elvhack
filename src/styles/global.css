@@ -24,6 +24,8 @@ html {
 
 body {
   min-height: 100svh;
+  /* 中英文之间自动留出空隙（盘古之白） */
+  text-autospace: normal;
   display: flex;
   flex-direction: column;
   background: var(--bg);
@@ -85,9 +87,10 @@ h1,
 h2,
 h3,
 h4 {
-  font-family: var(--font-display);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0;
   text-wrap: balance;
   overflow-wrap: break-word;
 }
@@ -185,8 +188,7 @@ p {
 
 .page-intro h1 {
   font-size: var(--step-4);
-  font-weight: 650;
-  letter-spacing: -0.035em;
+  line-height: 1.15;
 }
 
 .page-intro p {
@@ -291,4 +293,42 @@ html.theme-vt::view-transition-new(root) {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* 图片灯箱 */
+dialog.lightbox[open] {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-4);
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: var(--space-5);
+  border: 0;
+  background: color-mix(in oklab, var(--bg) 90%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: zoom-out;
+}
+
+dialog.lightbox::backdrop {
+  background: transparent;
+}
+
+dialog.lightbox img {
+  max-width: min(94vw, 1600px);
+  max-height: 84vh;
+  object-fit: contain;
+  border-radius: var(--radius);
+  box-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.6);
+}
+
+.lightbox-caption {
+  max-width: 60ch;
+  font-size: var(--step--1);
+  color: var(--fg-muted);
+  text-align: center;
 }

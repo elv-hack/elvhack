@@ -21,7 +21,12 @@ const minutes = readingMinutes(post.body);
 const { code, style } = postCover(post);
 ---
 
-<BaseLayout title={title} description={description} article={{ published: pubDate, modified: updatedDate, tags }}>
+<BaseLayout
+  title={title}
+  description={description}
+  image={`/og/${post.id.replaceAll('/', '--')}.png`}
+  article={{ published: pubDate, modified: updatedDate, tags }}
+>
   <div class="progress" aria-hidden="true"></div>
 
   <article class="container post">
@@ -72,9 +77,11 @@ const { code, style } = postCover(post);
         <Toc headings={headings} />
       </aside>
 
-      <post-body class="prose">
+      <post-body class="prose" data-pagefind-body>
         <slot />
       </post-body>
+
+      <aside class="notes-rail" aria-hidden="true"></aside>
     </div>
 
     <footer class="post-foot">
@@ -195,9 +202,7 @@ const { code, style } = postCover(post);
 
   h1 {
     font-size: var(--step-4);
-    font-weight: 650;
-    letter-spacing: -0.035em;
-    line-height: 1.08;
+    line-height: 1.15;
   }
 
   .post-head > .lede {
@@ -227,13 +232,20 @@ const { code, style } = postCover(post);
     color: var(--fg-faint);
   }
 
+  .post {
+    --toc-w: 12rem;
+    --note-w: 14rem;
+    --col-gap: clamp(2rem, 3.5vw, 4rem);
+  }
+
   .layout {
     display: grid;
     grid-template-columns: minmax(0, var(--measure));
     gap: var(--space-8);
   }
 
-  .side {
+  .side,
+  .notes-rail {
     display: none;
   }
 
@@ -252,6 +264,36 @@ const { code, style } = postCover(post);
     .side :global(toc-nav) {
       position: sticky;
       top: calc(var(--header-h) + var(--space-6));
+    }
+  }
+
+  /* 宽屏三栏：左目录 · 正文 · 右旁注，标题区与正文对齐 */
+  @media (min-width: 1280px) {
+    .layout {
+      grid-template-columns: var(--toc-w) minmax(0, var(--measure)) var(--note-w);
+      justify-content: start;
+      column-gap: var(--col-gap);
+    }
+
+    .side {
+      grid-column: 1;
+    }
+
+    post-body {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .notes-rail {
+      display: block;
+      position: relative;
+      grid-column: 3;
+      grid-row: 1;
+    }
+
+    .post-head > :not(.head-art),
+    .post-foot {
+      margin-left: calc(var(--toc-w) + var(--col-gap));
     }
   }
 
@@ -294,7 +336,7 @@ const { code, style } = postCover(post);
   }
 
   .pager .t {
-    font-family: var(--font-display);
+    font-family: var(--font-serif);
     font-weight: 600;
     line-height: 1.35;
   }
@@ -316,9 +358,82 @@ const { code, style } = postCover(post);
 </style>
 
 <script>
-  // 正文增强：标题锚点、代码块语言标签与复制按钮
+  const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const EASE = 'cubic-bezier(0.2, 0.7, 0.2, 1)';
+
+  /** 点击正文图片放大：从原位置平滑放大到屏幕中央（FLIP） */
+  function openLightbox(img: HTMLImageElement) {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'lightbox';
+    const big = document.createElement('img');
+    big.src = img.currentSrc || img.src;
+    big.alt = img.alt;
+    dialog.append(big);
+    const caption = img.closest('figure')?.querySelector('figcaption')?.textContent;
+    if (caption) {
+      const cap = document.createElement('p');
+      cap.className = 'lightbox-caption';
+      cap.textContent = caption;
+      dialog.append(cap);
+    }
+    document.body.append(dialog);
+    dialog.showModal();
+
+    const flip = () => {
+      const from = img.getBoundingClientRect();
+      const to = big.getBoundingClientRect();
+      const scale = from.width / to.width;
+      const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+      const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+      return `translate(${dx}px, ${dy}px) scale(${scale})`;
+    };
+
+    if (!reduceMotion()) {
+      big.animate([{ transform: flip() }, { transform: 'none' }], { duration: 420, easing: EASE });
+      dialog.animate([{ backgroundColor: 'transparent' }, {}], { duration: 300 });
+    }
+
+    let closing = false;
+    const close = () => {
+      if (closing) return;
+      closing = true;
+      if (reduceMotion()) {
+        dialog.close();
+        dialog.remove();
+        return;
+      }
+      const fade = dialog.animate([{}, { backgroundColor: 'transparent' }], { duration: 280, fill: 'forwards' });
+      big.animate([{ transform: 'none' }, { transform: flip() }], { duration: 320, easing: EASE, fill: 'forwards' });
+      fade.finished.then(() => {
+        dialog.close();
+        dialog.remove();
+      });
+    };
+    dialog.addEventListener('click', close);
+    dialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      close();
+    });
+  }
+
+  /** 正文增强：标题锚点、图注、灯箱、代码块标题栏与复制、宽屏旁注 */
   class PostBody extends HTMLElement {
+    #notes: { ref: HTMLAnchorElement; note: HTMLElement }[] = [];
+    #rail: HTMLElement | null = null;
+    #observer?: ResizeObserver;
+
     connectedCallback() {
+      this.#anchors();
+      this.#figures();
+      this.#codeBlocks();
+      this.#sidenotes();
+    }
+
+    disconnectedCallback() {
+      this.#observer?.disconnect();
+    }
+
+    #anchors() {
       for (const heading of this.querySelectorAll<HTMLElement>(':is(h2, h3, h4)[id]:not(.sr-only)')) {
         if (heading.querySelector('.anchor')) continue;
         const anchor = document.createElement('a');
@@ -328,7 +443,34 @@ const { code, style } = postCover(post);
         anchor.setAttribute('aria-label', `链接到「${heading.textContent}」`);
         heading.append(anchor);
       }
+    }
 
+    #figures() {
+      let count = 0;
+      for (const img of this.querySelectorAll<HTMLImageElement>('img')) {
+        if (img.closest('a, .experiment, .lightbox')) continue;
+        const paragraph = img.parentElement;
+        const title = img.getAttribute('title');
+        // 段落里只有这一张带标题的图：转成带编号图注的 figure
+        if (title && paragraph?.tagName === 'P' && paragraph.textContent?.trim() === '' && paragraph.children.length === 1) {
+          count += 1;
+          const figure = document.createElement('figure');
+          figure.className = 'figure';
+          const caption = document.createElement('figcaption');
+          const label = document.createElement('span');
+          label.className = 'mono';
+          label.textContent = `图 ${String(count).padStart(2, '0')}`;
+          caption.append(label, ` ${title}`);
+          img.removeAttribute('title');
+          paragraph.replaceWith(figure);
+          figure.append(img, caption);
+        }
+        img.classList.add('zoomable');
+        img.addEventListener('click', () => openLightbox(img));
+      }
+    }
+
+    #codeBlocks() {
       for (const pre of this.querySelectorAll<HTMLPreElement>('pre')) {
         if (pre.parentElement?.classList.contains('code-block')) continue;
         const wrap = document.createElement('div');
@@ -338,9 +480,18 @@ const { code, style } = postCover(post);
 
         const tools = document.createElement('div');
         tools.className = 'code-tools';
+        const title = pre.dataset.title;
+        if (title) {
+          wrap.classList.add('has-title');
+          const name = document.createElement('span');
+          name.className = 'code-title';
+          name.textContent = title;
+          tools.append(name);
+        }
         const lang = pre.dataset.language;
         if (lang && lang !== 'plaintext') {
           const label = document.createElement('span');
+          label.className = 'code-lang';
           label.textContent = lang;
           tools.append(label);
         }
@@ -350,7 +501,9 @@ const { code, style } = postCover(post);
           button.textContent = 'copy';
           button.addEventListener('click', async () => {
             try {
-              await navigator.clipboard.writeText(pre.innerText);
+              // diff 中被删除的行不复制
+              const lines = [...pre.querySelectorAll<HTMLElement>('.line')].filter((line) => !line.classList.contains('remove'));
+              await navigator.clipboard.writeText(lines.length ? lines.map((line) => line.textContent).join('\n') : pre.innerText);
               button.textContent = 'copied';
               button.toggleAttribute('data-copied', true);
               setTimeout(() => {
@@ -363,7 +516,72 @@ const { code, style } = postCover(post);
           });
           tools.append(button);
         }
-        wrap.append(tools);
+        if (title) wrap.prepend(tools);
+        else wrap.append(tools);
+      }
+    }
+
+    #sidenotes() {
+      this.#rail = this.parentElement?.querySelector<HTMLElement>('.notes-rail') ?? null;
+      const refs = [...this.querySelectorAll<HTMLAnchorElement>('a[data-footnote-ref]')];
+      if (!this.#rail || refs.length === 0) return;
+      this.#rail.replaceChildren();
+
+      for (const ref of refs) {
+        const item = document.getElementById(decodeURIComponent(ref.hash.slice(1)));
+        if (!item) continue;
+        const note = document.createElement('div');
+        note.className = 'sidenote';
+        const num = document.createElement('span');
+        num.className = 'num mono';
+        num.textContent = ref.textContent ?? '';
+        const body = document.createElement('div');
+        body.className = 'body';
+        const clone = item.cloneNode(true) as HTMLElement;
+        for (const back of clone.querySelectorAll('[data-footnote-backref]')) back.remove();
+        body.append(...clone.childNodes);
+        note.append(num, body);
+        this.#rail.append(note);
+
+        const on = () => {
+          note.classList.add('active');
+          ref.classList.add('active');
+        };
+        const off = () => {
+          note.classList.remove('active');
+          ref.classList.remove('active');
+        };
+        for (const el of [ref, note]) {
+          el.addEventListener('pointerenter', on);
+          el.addEventListener('pointerleave', off);
+        }
+        ref.addEventListener('click', (event) => {
+          if (this.#rail?.offsetParent === null) return;
+          // 宽屏下点脚注标号不跳到文末，而是让旁注闪一下
+          event.preventDefault();
+          note.classList.remove('flash');
+          void note.offsetWidth;
+          note.classList.add('flash');
+        });
+        this.#notes.push({ ref, note });
+      }
+
+      this.toggleAttribute('data-sidenotes', true);
+      this.#layoutNotes();
+      this.#observer = new ResizeObserver(() => this.#layoutNotes());
+      this.#observer.observe(this);
+      document.fonts?.ready.then(() => this.#layoutNotes());
+    }
+
+    /** 旁注与正文中的标号对齐，互相不重叠 */
+    #layoutNotes() {
+      if (!this.#rail || this.#rail.offsetParent === null) return;
+      const base = this.#rail.getBoundingClientRect().top;
+      let floor = 0;
+      for (const { ref, note } of this.#notes) {
+        const top = Math.max(ref.getBoundingClientRect().top - base - 3, floor);
+        note.style.transform = `translateY(${Math.round(top)}px)`;
+        floor = top + note.offsetHeight + 18;
       }
     }
   }

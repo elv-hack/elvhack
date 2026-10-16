@@ -14,7 +14,6 @@
   counter-increment: h2;
   margin-top: 2.4em;
   font-size: var(--step-2);
-  font-weight: 650;
 }
 
 .prose h2::before {
@@ -31,7 +30,6 @@
 .prose h3 {
   margin-top: 2em;
   font-size: var(--step-1);
-  font-weight: 650;
 }
 
 .prose h4 {
@@ -273,4 +271,177 @@
 
 .prose [data-footnote-ref]::after {
   content: ']';
+}
+
+/* 代码块：文件名标题栏 */
+.prose .code-block.has-title .code-tools {
+  position: static;
+  justify-content: flex-start;
+  padding: 0.5em 0.6em 0.5em 1em;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--bg-elev);
+}
+
+.prose .code-block.has-title pre {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.prose .code-title {
+  margin-right: auto;
+  color: var(--fg-muted);
+  text-transform: none;
+}
+
+.prose .code-title::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 0.7em;
+  background: var(--accent);
+  vertical-align: 0.05em;
+}
+
+/* 高亮行与 diff：背景铺满整行 */
+.prose pre .line {
+  display: inline-block;
+  min-width: calc(100% + 2.4em);
+  margin-inline: -1.2em;
+  padding-inline: 1.2em;
+}
+
+.prose pre .line.highlighted {
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  box-shadow: inset 2px 0 var(--accent-ink);
+}
+
+.prose pre .line.diff {
+  position: relative;
+}
+
+.prose pre .line.diff::before {
+  position: absolute;
+  left: 0.4em;
+}
+
+.prose pre .line.diff.add {
+  background: rgb(64 200 120 / 0.14);
+}
+
+.prose pre .line.diff.add::before {
+  content: '+';
+  color: #3fb871;
+}
+
+.prose pre .line.diff.remove {
+  background: rgb(240 80 80 / 0.12);
+  opacity: 0.7;
+}
+
+.prose pre .line.diff.remove::before {
+  content: '−';
+  color: #e5534b;
+}
+
+/* 图片与图注 */
+.prose img.zoomable {
+  cursor: zoom-in;
+}
+
+.prose .figure {
+  margin-block: 2em;
+}
+
+.prose .figure img {
+  width: 100%;
+  border: 1px solid var(--line);
+}
+
+.prose .figure figcaption {
+  display: flex;
+  gap: 0.8em;
+  margin-top: 0.7em;
+  text-align: left;
+  line-height: 1.6;
+}
+
+.prose .figure figcaption .mono {
+  flex: none;
+  color: var(--accent-ink);
+}
+
+/* 旁注（宽屏） */
+.notes-rail .sidenote {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 0.6em;
+  padding-left: 0.9em;
+  border-left: 1px solid var(--line-strong);
+  font-size: var(--step--1);
+  line-height: 1.65;
+  color: var(--fg-muted);
+  transition:
+    border-color 0.2s,
+    color 0.2s;
+}
+
+.notes-rail .sidenote .num {
+  flex: none;
+  color: var(--accent-ink);
+  font-size: var(--step--2);
+  line-height: 2.1;
+}
+
+.notes-rail .sidenote p {
+  margin: 0;
+}
+
+.notes-rail .sidenote a {
+  color: inherit;
+  text-decoration-color: var(--accent-ink);
+}
+
+.notes-rail .sidenote.active {
+  border-left-color: var(--accent-ink);
+  color: var(--fg);
+}
+
+.notes-rail .sidenote.flash {
+  animation: note-flash 1.2s var(--ease-out);
+}
+
+@keyframes note-flash {
+  0%,
+  30% {
+    background: color-mix(in oklab, var(--accent) 16%, transparent);
+    border-left-color: var(--accent-ink);
+  }
+}
+
+.prose a[data-footnote-ref] {
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+}
+
+.prose a[data-footnote-ref].active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+@media (min-width: 1280px) {
+  post-body[data-sidenotes] .footnotes {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
 }

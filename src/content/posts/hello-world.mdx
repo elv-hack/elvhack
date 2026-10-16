@@ -9,7 +9,7 @@ tags: [随笔, meta, 实验]
 
 ## 写作
 
-文章放在 `src/content/posts/` 下，文件名就是网址。普通的 Markdown 都能用：**加粗**、*强调*、`行内代码`、[链接](https://astro.build)，还有脚注[^1]。
+文章放在 `src/content/posts/` 下，文件名就是网址。普通的 Markdown 都能用：**加粗**、*强调*、`行内代码`、[链接](https://astro.build)，还有脚注[^1]。在宽屏上，脚注会变成右侧页边的旁注，读的时候不用跳到文末[^2]。
 
 > 引用块适合放别人的话，或者自己当时的想法。
 
@@ -25,11 +25,17 @@ tags: [随笔, meta, 实验]
 | `.md` | 纯文字文章 |
 | `.mdx` | 需要嵌入组件的文章 |
 
+## 图片
+
+图片的标题会变成带编号的图注，点击图片可以放大查看。
+
+![两组错位同心圆的莫尔纹](../../assets/posts/moire.webp "两组错位的同心圆叠在一起，干涉出莫尔纹")
+
 ## 代码
 
-代码块会按亮/暗主题自动切换配色，右上角有复制按钮。
+代码块会按亮/暗主题自动切换配色，右上角有复制按钮。在语言后面写 `title="文件名"` 会显示文件名标题栏，`{行号}` 会高亮对应的行。
 
-```ts
+```ts title="src/lib/particle.ts" {7-8}
 // 一个最小的粒子：位置 + 年龄
 interface Particle {
   x: number;
@@ -40,6 +46,16 @@ interface Particle {
 function step(p: Particle, angle: number, speed = 1.2): Particle {
   return { x: p.x + Math.cos(angle) * speed, y: p.y + Math.sin(angle) * speed, age: p.age + 1 };
 }
+```
+
+改动可以用 diff 标注：
+
+```ts title="astro.config.ts"
+export default defineConfig({
+  site: 'https://example.com', // [!code --]
+  site: 'https://elvhack.com', // [!code ++]
+  integrations: [mdx(), sitemap()],
+});
 ```
 
 ## 实验
@@ -58,4 +74,5 @@ function step(p: Particle, angle: number, speed = 1.2): Particle {
 
 首页的粒子流场会跟着鼠标形成涡旋，右上角可以切换明暗主题。剩下的，就是开始写了。
 
-[^1]: 脚注会自动编号，并出现在文章末尾。
+[^1]: 脚注会自动编号。窄屏上它们出现在文章末尾。
+[^2]: 这种排版来自 Edward Tufte 的书，网页上的做法可以参考 gwern.net。
