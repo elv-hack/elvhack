@@ -5,12 +5,11 @@
  */
 import { FlowField } from '../flow-field';
 import { themeColors } from '../theme';
-import type { Backdrop } from './types';
+import type { Backdrop, BackdropOptions } from './types';
 
 const PARALLAX = 0.3;
 
 export class FlowBackdrop implements Backdrop {
-  readonly continuous: boolean;
   #field: FlowField;
   #canvas: HTMLCanvasElement;
   #lastScroll = scrollY;
@@ -18,15 +17,14 @@ export class FlowBackdrop implements Backdrop {
   #baseSpeed = 0.55;
   #frame = 0;
 
-  constructor(host: HTMLElement, options: { continuous: boolean }) {
-    this.continuous = options.continuous;
+  constructor(host: HTMLElement, options: BackdropOptions) {
     this.#canvas = document.createElement('canvas');
     this.#canvas.className = 'flow';
     host.append(this.#canvas);
     this.#field = new FlowField(this.#canvas, {
-      areaPerParticle: 2400,
-      minCount: 160,
-      maxCount: 720,
+      areaPerParticle: options.lite ? 3400 : 2400,
+      minCount: options.lite ? 110 : 160,
+      maxCount: options.lite ? 380 : 720,
       scale: 0.0011,
       speed: this.#baseSpeed,
       fade: 0.045,
@@ -59,9 +57,9 @@ export class FlowBackdrop implements Backdrop {
     this.#boost = Math.max(Math.min(6, Math.abs(delta) * 0.08), this.#boost * 0.94);
     this.#field.params.speed = this.#baseSpeed * (1 + this.#boost);
 
-    // 持续模式下 30fps 就够了；滚动时每帧都画，保证视差跟手
+    // 静止阅读时 30fps 就够了；滚动时每帧都画，保证视差跟手
     this.#frame += 1;
-    if (this.continuous && !delta && this.#boost < 0.05 && this.#frame % 2) return;
+    if (!delta && this.#boost < 0.05 && this.#frame % 2) return;
     this.#field.step();
   }
 

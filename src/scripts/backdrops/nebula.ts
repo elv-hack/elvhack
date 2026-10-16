@@ -4,7 +4,7 @@
  * - 星光：Canvas 2D 透视星场，滚动即航行——往下读时星光迎面而来，停下时缓慢漂浮，往回滚则倒退
  */
 import { prefersReducedMotion, themeColors } from '../theme';
-import type { Backdrop } from './types';
+import type { Backdrop, BackdropOptions } from './types';
 
 const VERT = `attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }`;
 
@@ -90,7 +90,7 @@ const TRAIL = 7;
 
 
 export class NebulaBackdrop implements Backdrop {
-  readonly continuous: boolean;
+  #lite: boolean;
   #reduce = prefersReducedMotion();
   #gl: WebGLRenderingContext | null = null;
   #u: Record<string, WebGLUniformLocation | null> = {};
@@ -107,8 +107,8 @@ export class NebulaBackdrop implements Backdrop {
   #palette = { fg: '#fff', accent: '#c6ff3d' };
   #frame = 0;
 
-  constructor(host: HTMLElement, options: { continuous: boolean }) {
-    this.continuous = options.continuous;
+  constructor(host: HTMLElement, options: BackdropOptions) {
+    this.#lite = options.lite;
     this.#nebula = document.createElement('canvas');
     this.#nebula.className = 'nebula';
     this.#starsCanvas = document.createElement('canvas');
@@ -187,7 +187,7 @@ export class NebulaBackdrop implements Backdrop {
       gl.uniform1f(this.#u.uCenter, width < 900 ? 0.32 : 0.22);
     }
 
-    const count = Math.round(Math.min(360, Math.max(110, (width * height) / 5200)));
+    const count = Math.round(Math.min(this.#lite ? 200 : 360, Math.max(90, (width * height) / (this.#lite ? 7000 : 5200))));
     this.#stars = Array.from({ length: count }, (_, i) => this.#spawn(Math.random(), i));
     this.draw(performance.now());
   }

@@ -2,7 +2,8 @@
 /**
  * 文章页背景。默认是首页挪过来的粒子流场（阅读模式），也可以在 ⌘K 面板里换成“星云漂流”或关闭。
  * 渲染器在 src/scripts/backdrops/；这里只负责选模式、循环、尺寸、主题和正文栏遮罩。
- * 桌面端持续缓慢流动；触屏设备只在滚动时动，省电。减少动态效果时只渲染一帧。
+ * 所有设备都持续缓慢流动（触屏设备粒子更少）；减少动态效果时只渲染一帧。
+ * 高度用 100lvh：手机地址栏收起 / 弹出时画布尺寸不变，不会被重置。
  */
 ---
 
@@ -14,7 +15,9 @@
     --c1: 70%;
     --calm: 0.3;
     position: fixed;
-    inset: 0;
+    inset: 0 0 auto;
+    height: 100vh;
+    height: 100lvh;
     z-index: -1;
     display: block;
     pointer-events: none;
@@ -52,6 +55,9 @@
   import { Loop } from '@/scripts/loop';
   import { hasFinePointer, prefersReducedMotion } from '@/scripts/theme';
 
+  /** 高度变化小于这个比例时（例如手机地址栏），不重建画布 */
+  const MINOR_HEIGHT_CHANGE = 0.2;
+
   /** 读取访客选择的背景模式，默认流场 */
   const savedMode = (): BackdropMode => {
     try {
@@ -67,7 +73,7 @@
     #loop!: Loop;
     #resize?: ResizeObserver;
     #reduce = prefersReducedMotion();
-    #idle = 0;
+    #size = { width: 0, height: 0 };
 
     connectedCallback() {
       this.#loop = new Loop(this, (now) => this.#backdrop?.draw(now));
@@ -75,7 +81,6 @@
       this.#resize.observe(this);
       document.addEventListener('themechange', this.#onTheme);
       document.addEventListener('ambientchange', this.#mount);
-      addEventListener('scroll', this.#onScroll, { passive: true });
       this.#mount();
       this.#loop.start();
       requestAnimationFrame(() => this.toggleAttribute('data-ready', true));
@@ -84,10 +89,8 @@
     disconnectedCallback() {
       this.#loop.stop();
       this.#resize?.disconnect();
-      clearTimeout(this.#idle);
       document.removeEventListener('themechange', this.#onTheme);
       document.removeEventListener('ambientchange', this.#mount);
-      removeEventListener('scroll', this.#onScroll);
       this.#backdrop?.destroy();
     }
 
@@ -97,16 +100,23 @@
       const mode = savedMode();
       this.dataset.mode = mode;
       if (mode !== 'off') {
-        const options = { continuous: hasFinePointer() && !this.#reduce };
+        const options = { lite: !hasFinePointer() };
         this.#backdrop = mode === 'nebula' ? new NebulaBackdrop(this, options) : new FlowBackdrop(this, options);
       }
+      this.#size = { width: 0, height: 0 };
       this.#layout();
-      this.#loop.paused = !this.#backdrop?.continuous;
+      this.#loop.paused = this.#reduce || !this.#backdrop;
     };
 
     #layout() {
       const rect = this.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
+      // 宽度不变、高度只是小幅变化（地址栏、键盘之类）时保持原样，避免整片重置
+      const minor =
+        Math.round(rect.width) === Math.round(this.#size.width) &&
+        Math.abs(rect.height - this.#size.height) < this.#size.height * MINOR_HEIGHT_CHANGE;
+      if (minor) return;
+      this.#size = { width: rect.width, height: rect.height };
       // 正文栏在视口中的横向范围，写给流场的遮罩
       const body = document.querySelector('post-body')?.getBoundingClientRect();
       if (body && body.width < rect.width * 0.86) {
@@ -125,14 +135,6 @@
     #onTheme = () => {
       this.#backdrop?.colors();
       if (this.#loop.paused) this.#backdrop?.draw(performance.now());
-    };
-
-    /** 非持续模式：滚动时动起来，停下 1.5 秒后静止 */
-    #onScroll = () => {
-      if (!this.#backdrop || this.#backdrop.continuous || this.#reduce) return;
-      this.#loop.paused = false;
-      clearTimeout(this.#idle);
-      this.#idle = window.setTimeout(() => (this.#loop.paused = true), 1500);
     };
   }
 

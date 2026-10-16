@@ -5,9 +5,12 @@ export interface Backdrop {
   draw(now: number): void;
   /** 主题或 CRT 模式变化后重新读取颜色 */
   colors(): void;
-  /** 是否需要持续动画；返回 false 时只在滚动时重绘 */
-  readonly continuous: boolean;
   destroy(): void;
+}
+
+export interface BackdropOptions {
+  /** 触屏等性能较弱的设备：减少粒子 / 星星数量 */
+  lite: boolean;
 }
 
 export type BackdropMode = 'flow' | 'nebula' | 'off';
