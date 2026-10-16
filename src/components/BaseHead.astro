@@ -1,5 +1,6 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import { sameAs } from '@/lib/social';
 import { site } from '@/site.config';
 
 export interface Props {
@@ -27,7 +28,7 @@ const jsonLd = article
       image: imageUrl.href,
       datePublished: article.published.toISOString(),
       dateModified: (article.modified ?? article.published).toISOString(),
-      author: { '@type': 'Person', name: site.author, url: site.url },
+      author: { '@type': 'Person', name: site.author, url: site.url, sameAs },
       mainEntityOfPage: canonical.href,
       keywords: article.tags.join(', '),
       inLanguage: site.lang,
@@ -39,6 +40,7 @@ const jsonLd = article
       url: site.url,
       description: site.description,
       inLanguage: site.lang,
+      author: { '@type': 'Person', name: site.author, url: site.url, sameAs },
     };
 ---
 
@@ -103,6 +105,8 @@ const jsonLd = article
   )
 }
 <meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content={site.twitterHandle} />
+<meta name="twitter:creator" content={site.twitterHandle} />
 <meta name="twitter:title" content={title ?? site.title} />
 <meta name="twitter:description" content={description} />
 <meta name="twitter:image" content={imageUrl} />

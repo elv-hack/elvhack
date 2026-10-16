@@ -1,5 +1,6 @@
 ---
 import { build } from '@/lib/build';
+import SocialLinks from './SocialLinks.astro';
 import { site } from '@/site.config';
 
 const year = new Date().getFullYear();
@@ -8,11 +9,9 @@ const year = new Date().getFullYear();
 <footer class="site-footer">
   <div class="container inner">
     <p class="status mono"><span class="dot" aria-hidden="true"></span> 信号正常 · signal ok</p>
-    <ul class="links mono">
-      <li><a href={site.social.github} rel="me noopener" target="_blank">GitHub ↗</a></li>
-      <li><a href="/rss.xml">RSS</a></li>
-      <li><a href="/sitemap-index.xml">Sitemap</a></li>
-    </ul>
+    <nav class="links" aria-label="个人链接">
+      <SocialLinks />
+    </nav>
     <p class="copy mono">
       © {year} {site.title} · build {build.url ? <a href={build.url} target="_blank" rel="noopener">{build.short}</a> : build.short} · {
         build.stamp
@@ -61,20 +60,7 @@ const year = new Date().getFullYear();
   }
 
   .links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-5);
-    padding: 0;
-    list-style: none;
-    justify-content: end;
-  }
-
-  .links a {
-    text-decoration: none;
-  }
-
-  .links a:hover {
-    color: var(--accent-ink);
+    justify-self: end;
   }
 
   .copy {
@@ -111,7 +97,7 @@ const year = new Date().getFullYear();
     }
 
     .links {
-      justify-content: start;
+      justify-self: start;
     }
   }
 </style>

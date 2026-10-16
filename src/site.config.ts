@@ -15,7 +15,11 @@ export const site = {
   ],
   social: {
     github: 'https://github.com/vx-zjr',
+    x: 'https://x.com/elvhack',
+    tiktok: 'https://www.tiktok.com/@elvhack',
   },
+  /** X（Twitter）用户名，用于分享卡片的 twitter:site */
+  twitterHandle: '@elvhack',
   // 评论：仓库需开启 Discussions 并安装 giscus App（https://github.com/apps/giscus）。
   // ID 可在 https://giscus.app/zh-CN 查到；清空 repoId 或 categoryId 即关闭评论区。
   giscus: {
