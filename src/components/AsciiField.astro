@@ -1,0 +1,355 @@
+---
+/**
+ * 首页背景（ASCII 模式）：WebGL 片元着色器计算域扭曲的 fbm 噪声场，
+ * 再按亮度量化成等宽字符网格；指针附近激起一圈涟漪。
+ * 不支持 WebGL 时由 HeroField 回退到粒子流场。
+ */
+---
+
+<ascii-field>
+  <canvas aria-hidden="true"></canvas>
+  <p class="readout mono" aria-hidden="true"><span data-out="stats">ascii field</span></p>
+</ascii-field>
+
+<style>
+  ascii-field {
+    position: absolute;
+    inset: 0;
+    display: block;
+    overflow: hidden;
+  }
+
+  canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  .readout {
+    position: absolute;
+    right: calc(var(--gutter) * 0.5 + 24px);
+    bottom: calc(var(--space-5) + 22px);
+    font-size: var(--step--2);
+    color: var(--fg-faint);
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 640px) {
+    .readout {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  import { Loop } from '@/scripts/loop';
+  import { prefersReducedMotion, themeColors } from '@/scripts/theme';
+
+  const RAMP = ' .,:;~=+*x%#@';
+  const ATLAS_CELL = 48;
+
+  const VERT = `attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }`;
+
+  // 第一遍：每个字符格算一次噪声值，写进 cols×rows 的小纹理（r = 亮度，g = 是否强调色）
+  const FIELD = `
+    precision highp float;
+    uniform vec2 uGrid;
+    uniform float uTime;
+    uniform vec2 uPointer;
+    uniform float uPointerOn;
+
+    float hash(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+
+    float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+    }
+
+    float fbm(vec2 p) {
+      float v = 0.0;
+      float a = 0.5;
+      for (int i = 0; i < 5; i++) {
+        v += a * noise(p);
+        p = p * 2.03 + vec2(1.7, 9.2);
+        a *= 0.5;
+      }
+      return v;
+    }
+
+    void main() {
+      vec2 cell = floor(gl_FragCoord.xy);
+      // 按短边归一化，竖屏也能看到足够多的噪声变化
+      float span = min(uGrid.x, uGrid.y);
+      vec2 uv = (cell + 0.5) / span;
+      float t = uTime;
+
+      // 域扭曲：两层 fbm 扭曲第三层的采样坐标
+      vec2 q = vec2(fbm(uv * 1.5 + vec2(0.0, t * 0.05)), fbm(uv * 1.5 + vec2(5.2, 1.3) - t * 0.04));
+      vec2 r = vec2(fbm(uv * 1.5 + 2.0 * q + vec2(1.7, 9.2) + t * 0.03), fbm(uv * 1.5 + 2.0 * q + vec2(8.3, 2.8) - t * 0.02));
+      float v = smoothstep(0.28, 0.82, fbm(uv * 1.8 + 2.2 * r));
+
+      // 指针涟漪
+      float d = distance(cell + 0.5, uPointer) / span;
+      float ring = uPointerOn * smoothstep(0.32, 0.0, d) * (0.5 + 0.5 * sin(d * 70.0 - t * 7.0));
+      v = clamp(v + ring * 0.5, 0.0, 1.0);
+
+      float sparkle = step(0.72, v) * step(0.86, hash(cell + floor(t * 0.7)));
+      float accent = max(sparkle, step(0.75, ring));
+      gl_FragColor = vec4(v, accent, 0.0, 1.0);
+    }
+  `;
+
+  // 第二遍：每个像素只查两次纹理，画出对应的字符
+  const GLYPH = `
+    precision highp float;
+    uniform vec2 uGrid;
+    uniform float uCell;
+    uniform float uGlyphs;
+    uniform sampler2D uField;
+    uniform sampler2D uAtlas;
+    uniform vec3 uBg;
+    uniform vec3 uInk;
+    uniform vec3 uAccent;
+
+    void main() {
+      vec2 cell = floor(gl_FragCoord.xy / uCell);
+      vec2 local = fract(gl_FragCoord.xy / uCell);
+      vec4 f = texture2D(uField, (cell + 0.5) / uGrid);
+      float accent = step(0.5, f.g);
+      float idx = floor(f.r * (uGlyphs - 1.0) + 0.5);
+      float glyph = texture2D(uAtlas, vec2((idx + local.x) / uGlyphs, 1.0 - local.y)).a;
+      vec3 color = mix(uInk, uAccent, accent);
+      float alpha = glyph * mix(0.18, 0.85, f.r) * mix(1.0, 1.25, accent);
+      gl_FragColor = vec4(mix(uBg, color, clamp(alpha, 0.0, 1.0)), 1.0);
+    }
+  `;
+
+  type Uniforms = Record<string, WebGLUniformLocation | null>;
+
+  const toRgb = (color: string): [number, number, number] => {
+    const probe = document.createElement('canvas').getContext('2d')!;
+    probe.fillStyle = color;
+    const normalized = probe.fillStyle as string;
+    if (normalized.startsWith('#')) {
+      const n = parseInt(normalized.slice(1), 16);
+      return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+    }
+    const [r, g, b] = normalized.match(/[\d.]+/g)!.map(Number);
+    return [r / 255, g / 255, b / 255];
+  };
+
+  class AsciiField extends HTMLElement {
+    #gl!: WebGLRenderingContext;
+    #canvas!: HTMLCanvasElement;
+    #field!: { program: WebGLProgram; u: Uniforms };
+    #glyph!: { program: WebGLProgram; u: Uniforms };
+    #fieldTex: WebGLTexture | null = null;
+    #fbo: WebGLFramebuffer | null = null;
+    #grid = { cols: 1, rows: 1 };
+    #loop!: Loop;
+    #resize?: ResizeObserver;
+    #stats!: HTMLElement;
+    #host: HTMLElement | null = null;
+    #start = performance.now();
+    #pointer = { x: 0, y: 0, on: 0, target: 0 };
+    #cell = 12;
+    #dpr = 1;
+    #fps = { frames: 0, since: 0 };
+    #ready = false;
+
+    async connectedCallback() {
+      this.#canvas = this.querySelector('canvas')!;
+      this.#stats = this.querySelector('[data-out="stats"]')!;
+      const gl = this.#canvas.getContext('webgl', { antialias: false, alpha: false });
+      if (!gl) return;
+      this.#gl = gl;
+      const field = this.#program(FIELD, ['uGrid', 'uTime', 'uPointer', 'uPointerOn']);
+      const glyph = this.#program(GLYPH, ['uGrid', 'uCell', 'uGlyphs', 'uField', 'uAtlas', 'uBg', 'uInk', 'uAccent']);
+      if (!field || !glyph) return;
+      this.#field = field;
+      this.#glyph = glyph;
+
+      // 覆盖全屏的单个三角形，两遍共用
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+      await this.#atlas();
+      if (!this.isConnected) return;
+      this.#colors();
+      this.#ready = true;
+
+      this.#loop = new Loop(this, (now) => this.#draw(now));
+      this.#resize = new ResizeObserver(() => this.#onResize());
+      this.#resize.observe(this);
+
+      this.#host = this.parentElement;
+      this.#host?.addEventListener('pointermove', this.#onMove);
+      this.#host?.addEventListener('pointerleave', this.#onLeave);
+      document.addEventListener('themechange', this.#onTheme);
+
+      if (prefersReducedMotion()) this.#loop.paused = true;
+      this.#loop.start();
+    }
+
+    disconnectedCallback() {
+      if (!this.#ready) return;
+      this.#loop.stop();
+      this.#resize?.disconnect();
+      this.#host?.removeEventListener('pointermove', this.#onMove);
+      this.#host?.removeEventListener('pointerleave', this.#onLeave);
+      document.removeEventListener('themechange', this.#onTheme);
+    }
+
+    #program(fragment: string, names: string[]) {
+      const gl = this.#gl;
+      const compile = (type: number, source: string) => {
+        const shader = gl.createShader(type)!;
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
+        console.warn(gl.getShaderInfoLog(shader));
+        return null;
+      };
+      const vs = compile(gl.VERTEX_SHADER, VERT);
+      const fs = compile(gl.FRAGMENT_SHADER, fragment);
+      if (!vs || !fs) return null;
+      const program = gl.createProgram()!;
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.bindAttribLocation(program, 0, 'p');
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
+      const u: Uniforms = {};
+      for (const name of names) u[name] = gl.getUniformLocation(program, name);
+      return { program, u };
+    }
+
+    #texture(unit: number, filter: number) {
+      const gl = this.#gl;
+      const texture = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      return texture;
+    }
+
+    /** 把字符画进一张横排图集，作为纹理上传（纹理单元 0） */
+    async #atlas() {
+      const font = `500 ${Math.round(ATLAS_CELL * 0.78)}px "JetBrains Mono Variable", ui-monospace, monospace`;
+      try {
+        await document.fonts.load(font, RAMP);
+      } catch {}
+      const atlas = document.createElement('canvas');
+      atlas.width = ATLAS_CELL * RAMP.length;
+      atlas.height = ATLAS_CELL;
+      const ctx = atlas.getContext('2d')!;
+      ctx.font = font;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff';
+      [...RAMP].forEach((ch, i) => ctx.fillText(ch, i * ATLAS_CELL + ATLAS_CELL / 2, ATLAS_CELL / 2 + 1));
+
+      const gl = this.#gl;
+      this.#texture(0, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlas);
+      gl.useProgram(this.#glyph.program);
+      gl.uniform1i(this.#glyph.u.uAtlas, 0);
+      gl.uniform1i(this.#glyph.u.uField, 1);
+      gl.uniform1f(this.#glyph.u.uGlyphs, RAMP.length);
+    }
+
+    #colors() {
+      const { bg, fg, accent } = themeColors();
+      const gl = this.#gl;
+      gl.useProgram(this.#glyph.program);
+      gl.uniform3fv(this.#glyph.u.uBg, toRgb(bg));
+      gl.uniform3fv(this.#glyph.u.uInk, toRgb(fg));
+      gl.uniform3fv(this.#glyph.u.uAccent, toRgb(accent));
+    }
+
+    #onTheme = () => {
+      this.#colors();
+      if (this.#loop.paused) this.#draw(performance.now());
+    };
+
+    #onResize() {
+      const rect = this.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const gl = this.#gl;
+      this.#dpr = Math.min(devicePixelRatio || 1, 2);
+      this.#canvas.width = Math.round(rect.width * this.#dpr);
+      this.#canvas.height = Math.round(rect.height * this.#dpr);
+      this.#cell = (rect.width < 640 ? 10 : 13) * this.#dpr;
+      this.#grid = { cols: Math.ceil(this.#canvas.width / this.#cell), rows: Math.ceil(this.#canvas.height / this.#cell) };
+
+      // 重建字符格大小的离屏纹理（纹理单元 1）
+      if (this.#fieldTex) gl.deleteTexture(this.#fieldTex);
+      if (this.#fbo) gl.deleteFramebuffer(this.#fbo);
+      this.#fieldTex = this.#texture(1, gl.NEAREST);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.#grid.cols, this.#grid.rows, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      this.#fbo = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.#fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.#fieldTex, 0);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+      gl.useProgram(this.#field.program);
+      gl.uniform2f(this.#field.u.uGrid, this.#grid.cols, this.#grid.rows);
+      gl.useProgram(this.#glyph.program);
+      gl.uniform2f(this.#glyph.u.uGrid, this.#grid.cols, this.#grid.rows);
+      gl.uniform1f(this.#glyph.u.uCell, this.#cell);
+      this.#stats.textContent = `${this.#grid.cols}×${this.#grid.rows} glyphs`;
+      if (this.#loop.paused) this.#draw(performance.now());
+    }
+
+    #onMove = (event: PointerEvent) => {
+      const rect = this.getBoundingClientRect();
+      this.#pointer.x = ((event.clientX - rect.left) * this.#dpr) / this.#cell;
+      this.#pointer.y = ((rect.height - (event.clientY - rect.top)) * this.#dpr) / this.#cell;
+      this.#pointer.target = 1;
+    };
+
+    #onLeave = () => (this.#pointer.target = 0);
+
+    #draw(now: number) {
+      if (!this.#fbo) return;
+      const gl = this.#gl;
+      const p = this.#pointer;
+      p.on += (p.target - p.on) * 0.08;
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.#fbo);
+      gl.viewport(0, 0, this.#grid.cols, this.#grid.rows);
+      gl.useProgram(this.#field.program);
+      gl.uniform1f(this.#field.u.uTime, (now - this.#start) / 1000);
+      gl.uniform2f(this.#field.u.uPointer, p.x, p.y);
+      gl.uniform1f(this.#field.u.uPointerOn, p.on);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, this.#canvas.width, this.#canvas.height);
+      gl.useProgram(this.#glyph.program);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+      const fps = this.#fps;
+      fps.frames += 1;
+      if (now - fps.since > 500) {
+        const value = Math.round((fps.frames * 1000) / (now - fps.since));
+        fps.frames = 0;
+        fps.since = now;
+        this.#stats.textContent = `${this.#grid.cols}×${this.#grid.rows} glyphs · ${value} fps`;
+      }
+    }
+  }
+
+  if (!customElements.get('ascii-field')) customElements.define('ascii-field', AsciiField);
+</script>

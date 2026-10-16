@@ -1,0 +1,103 @@
+---
+/**
+ * 首页背景容器：ASCII 着色器与粒子流场二选一，访客可切换，选择会被记住。
+ * 不支持 WebGL 时固定为粒子流场。
+ */
+import AsciiField from './AsciiField.astro';
+import FieldCanvas from './FieldCanvas.astro';
+---
+
+<hero-field data-mode="ascii">
+  <AsciiField />
+  <FieldCanvas />
+  <div class="modes mono" role="group" aria-label="背景渲染模式">
+    <button type="button" data-set="ascii" aria-pressed="true">ascii</button>
+    <button type="button" data-set="flow" aria-pressed="false">flow</button>
+  </div>
+</hero-field>
+
+<style>
+  hero-field {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+
+  hero-field[data-mode='ascii'] :global(field-canvas),
+  hero-field[data-mode='flow'] :global(ascii-field) {
+    display: none;
+  }
+
+  .modes {
+    position: absolute;
+    right: calc(var(--gutter) * 0.5 + 24px);
+    bottom: calc(var(--space-5) + 46px);
+    z-index: 3;
+    display: flex;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--bg) 70%, transparent);
+    backdrop-filter: blur(8px);
+    overflow: hidden;
+  }
+
+  button {
+    padding: 0.3em 0.9em;
+    border: 0;
+    background: transparent;
+    font-size: var(--step--2);
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  button[aria-pressed='true'] {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  @media (max-width: 640px) {
+    .modes {
+      bottom: calc(var(--space-5) + 22px);
+    }
+  }
+</style>
+
+<script>
+  type Mode = 'ascii' | 'flow';
+
+  const webgl = (() => {
+    try {
+      return !!document.createElement('canvas').getContext('webgl');
+    } catch {
+      return false;
+    }
+  })();
+
+  class HeroField extends HTMLElement {
+    connectedCallback() {
+      let saved: string | null = null;
+      try {
+        saved = localStorage.getItem('hero-mode');
+      } catch {}
+      this.#set(webgl && saved !== 'flow' ? 'ascii' : 'flow', false);
+      if (!webgl) this.querySelector('.modes')?.remove();
+      for (const button of this.querySelectorAll<HTMLButtonElement>('[data-set]')) {
+        button.addEventListener('click', () => this.#set(button.dataset.set as Mode, true));
+      }
+    }
+
+    #set(mode: Mode, remember: boolean) {
+      this.dataset.mode = mode;
+      for (const button of this.querySelectorAll<HTMLButtonElement>('[data-set]')) {
+        button.setAttribute('aria-pressed', String(button.dataset.set === mode));
+      }
+      if (!remember) return;
+      try {
+        localStorage.setItem('hero-mode', mode);
+      } catch {}
+    }
+  }
+
+  if (!customElements.get('hero-field')) customElements.define('hero-field', HeroField);
+</script>
