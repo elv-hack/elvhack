@@ -73,7 +73,7 @@ npx wrangler@4.146.0 deploy
 
 ## 开启评论（Giscus）
 
-1. 在 GitHub 仓库 `vx-zjr/elvhack` 的 Settings → Features 打开 Discussions。
+1. 在 GitHub 仓库 `elv-hack/elvhack` 的 Settings → Features 打开 Discussions。
 2. 安装 [giscus App](https://github.com/apps/giscus) 并授权这个仓库。
 3. 到 <https://giscus.app/zh-CN> 选择仓库和分类，把生成的 `data-repo-id`、`data-category-id` 填进 `src/site.config.ts` 的 `giscus`。
 

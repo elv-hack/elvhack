@@ -24,7 +24,7 @@ const PATHS = {
 const handleOf = (url: string) => '@' + url.replace(/\/$/, '').split('/').pop()!.replace(/^@/, '');
 
 export const socialLinks: SocialLink[] = [
-  { id: 'github', label: 'GitHub', handle: 'vx-zjr', href: site.social.github, external: true, path: PATHS.github },
+  { id: 'github', label: 'GitHub', handle: 'elv-hack', href: site.social.github, external: true, path: PATHS.github },
   { id: 'x', label: 'X', handle: handleOf(site.social.x), href: site.social.x, external: true, path: PATHS.x },
   { id: 'tiktok', label: 'TikTok', handle: handleOf(site.social.tiktok), href: site.social.tiktok, external: true, path: PATHS.tiktok },
   { id: 'rss', label: 'RSS', handle: '订阅更新', href: '/rss.xml', external: false, path: PATHS.rss },

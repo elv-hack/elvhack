@@ -14,7 +14,7 @@ export const site = {
     { href: '/about/', label: '关于' },
   ],
   social: {
-    github: 'https://github.com/vx-zjr',
+    github: 'https://github.com/elv-hack',
     x: 'https://x.com/elvhack',
     tiktok: 'https://www.tiktok.com/@elvhack',
   },
@@ -23,7 +23,7 @@ export const site = {
   // 评论：仓库需开启 Discussions 并安装 giscus App（https://github.com/apps/giscus）。
   // ID 可在 https://giscus.app/zh-CN 查到；清空 repoId 或 categoryId 即关闭评论区。
   giscus: {
-    repo: 'vx-zjr/elvhack',
+    repo: 'elv-hack/elvhack',
     repoId: 'R_kgDOS5Xtkg',
     category: 'Announcements',
     categoryId: 'DIC_kwDOS5Xtks4DIk-x',
