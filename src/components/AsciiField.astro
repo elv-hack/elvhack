@@ -42,6 +42,7 @@
 </style>
 
 <script>
+  import { toRgb } from '@/scripts/color';
   import { Loop } from '@/scripts/loop';
   import { prefersReducedMotion, themeColors } from '@/scripts/theme';
 
@@ -131,18 +132,6 @@
   `;
 
   type Uniforms = Record<string, WebGLUniformLocation | null>;
-
-  const toRgb = (color: string): [number, number, number] => {
-    const probe = document.createElement('canvas').getContext('2d')!;
-    probe.fillStyle = color;
-    const normalized = probe.fillStyle as string;
-    if (normalized.startsWith('#')) {
-      const n = parseInt(normalized.slice(1), 16);
-      return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
-    }
-    const [r, g, b] = normalized.match(/[\d.]+/g)!.map(Number);
-    return [r / 255, g / 255, b / 255];
-  };
 
   class AsciiField extends HTMLElement {
     #gl!: WebGLRenderingContext;

@@ -10,9 +10,7 @@ const commands = [
   ...[{ href: '/', label: '首页' }, ...site.nav].map((item) => ({ group: '跳转', label: item.label, hint: item.href, href: item.href })),
   ...labs.map((entry) => ({ group: '实验', label: entry.title, hint: `${labCode(entry)} · ${entry.en}`, href: `/lab/${entry.slug}/` })),
   { group: '操作', label: '切换明暗主题', hint: 'theme', action: 'theme' },
-  { group: '文章背景', label: '流场（默认）', hint: 'flow field', action: 'ambient', value: 'flow' },
-  { group: '文章背景', label: '星云漂流', hint: 'nebula', action: 'ambient', value: 'nebula' },
-  { group: '文章背景', label: '关闭背景特效', hint: 'off', action: 'ambient', value: 'off' },
+  { group: '操作', label: '开 / 关文章背景', hint: 'backdrop', action: 'ambient' },
   { group: '彩蛋', label: 'CRT 模式', hint: 'crt · ↑↑↓↓←→←→BA', action: 'crt' },
   { group: '操作', label: '复制当前页链接', hint: 'copy url', action: 'copy' },
   { group: '操作', label: '订阅 RSS', hint: '/rss.xml', href: '/rss.xml', external: true },
@@ -238,7 +236,6 @@ const commands = [
     hint: string;
     href?: string;
     action?: 'theme' | 'copy' | 'ambient' | 'crt';
-    value?: string;
     external?: boolean;
   }
 
@@ -400,11 +397,14 @@ const commands = [
         this.close();
         document.dispatchEvent(new Event('crt:toggle'));
       } else if (c.action === 'ambient') {
+        this.close();
+        let off = false;
         try {
-          localStorage.setItem('ambient', c.value ?? 'flow');
+          off = localStorage.getItem('ambient') !== 'off';
+          localStorage.setItem('ambient', off ? 'off' : 'on');
         } catch {}
         document.dispatchEvent(new Event('ambientchange'));
-        this.#status.textContent = `文章背景：${c.label}`;
+        this.#status.textContent = off ? '文章背景已关闭' : '文章背景已开启';
       } else if (c.action === 'copy') {
         navigator.clipboard?.writeText(location.href).then(() => (this.#status.textContent = '链接已复制'));
       } else if (c.href && c.external) {

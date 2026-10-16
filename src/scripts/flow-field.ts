@@ -85,27 +85,6 @@ export class FlowField {
     this.pointer.active = false;
   }
 
-  /** 整体平移粒子和已画好的拖尾（CSS 像素），用于滚动视差 */
-  shift(dy: number) {
-    const offset = Math.round(dy * this.#dpr);
-    if (!offset) return;
-    const ctx = this.#ctx;
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'copy';
-    ctx.drawImage(this.#canvas, 0, offset);
-    ctx.globalCompositeOperation = 'source-over';
-    // 移出画布的部分露出空白，用背景色补上
-    ctx.fillStyle = this.colors.bg;
-    if (offset > 0) ctx.fillRect(0, 0, this.#w, offset);
-    else ctx.fillRect(0, this.#h + offset, this.#w, -offset);
-    const p = this.#particles;
-    for (let i = 0; i < this.count; i++) {
-      const o = i * STRIDE;
-      p[o + 1] += offset;
-      if (p[o + 1] < 0 || p[o + 1] > this.#h) this.#spawn(i);
-    }
-  }
-
   clear() {
     this.#ctx.globalAlpha = 1;
     this.#ctx.fillStyle = this.colors.bg;

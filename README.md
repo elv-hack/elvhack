@@ -40,7 +40,7 @@ cover: ridge              # 可选：flow / moire / ridge / halftone，不填由
 ## 交互与彩蛋
 
 - `⌘K` / `Ctrl K` / `/`：命令面板，页面跳转、全文搜索（Pagefind，构建时生成索引）、切换主题、开关文章背景特效
-- 文章页背景：默认是首页挪过来的粒子流场（滚动视差），也可在命令面板里换成“星云漂流”或关闭；渲染器在 `src/scripts/backdrops/`
+- 文章页背景“信号点阵”（`src/components/ReadingBackdrop.astro`）：固定在视口、不随页面滚动，每帧只由坐标和时间算出；可在命令面板里开关
 - 实验室 `/lab`：实验注册在 `src/lab/registry.ts`，组件放在 `src/lab/`
 - 彩蛋：Konami 秘籍 ↑↑↓↓←→←→BA，或命令面板里的“CRT 模式”
 
