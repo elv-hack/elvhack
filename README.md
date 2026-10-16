@@ -23,8 +23,11 @@ pubDate: 2026-10-16
 updatedDate: 2026-10-20   # 可选
 tags: [随笔, 实验]
 draft: false              # true 时只在 pnpm dev 里可见
+cover: ridge              # 可选：flow / moire / ridge / halftone，不填由文章 id 决定
 ---
 ```
+
+每篇文章都有一张由 id 生成的封面（`src/lib/generative.ts`），构建时输出到 `/covers/<id>.svg`，并自动适配明暗主题。
 
 `.mdx` 里不用 import 就能直接用这些组件：
 

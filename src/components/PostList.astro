@@ -1,5 +1,6 @@
 ---
-import { formatDate, postHref, type Post } from '@/lib/posts';
+import { COVER_H, COVER_W } from '@/lib/generative';
+import { formatDate, postCover, postHref, type Post } from '@/lib/posts';
 import ScrambleText from './ScrambleText.astro';
 
 export interface Props {
@@ -13,11 +14,12 @@ export interface Props {
 const { posts, start = 1, morph = true } = Astro.props;
 ---
 
+<post-list>
 <ol class="post-list" start={start}>
   {
     posts.map((post, i) => (
       <li>
-        <a href={postHref(post)} class="row">
+        <a href={postHref(post)} class="row" data-cover={`${postCover(post).file}#art`} data-code={postCover(post).code}>
           <span class="idx mono" aria-hidden="true">
             {String(start + i).padStart(2, '0')}
           </span>
@@ -39,8 +41,60 @@ const { posts, start = 1, morph = true } = Astro.props;
     ))
   }
 </ol>
+<div class="peek" aria-hidden="true">
+  <svg viewBox={`0 0 ${COVER_W} ${COVER_H}`} preserveAspectRatio="xMidYMid slice"><use></use></svg>
+  <span class="peek-code mono"></span>
+</div>
+</post-list>
 
 <style>
+  post-list {
+    position: relative;
+    display: block;
+  }
+
+  /* 悬停预览：封面跟随指针浮出 */
+  .peek {
+    --cover-accent: var(--accent-ink);
+    --cover-bg: var(--bg-elev);
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 40;
+    width: 280px;
+    aspect-ratio: 16 / 10;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--cover-bg);
+    color: var(--fg);
+    box-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.45);
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+    scale: 0.85;
+    transition:
+      opacity 0.25s ease,
+      scale 0.35s var(--ease-out);
+  }
+
+  .peek[data-show] {
+    opacity: 1;
+    scale: 1;
+  }
+
+  .peek svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .peek-code {
+    position: absolute;
+    left: 0.7em;
+    bottom: 0.5em;
+    font-size: var(--step--2);
+    color: var(--fg-muted);
+  }
+
   .post-list {
     padding: 0;
     list-style: none;
@@ -162,3 +216,73 @@ const { posts, start = 1, morph = true } = Astro.props;
     }
   }
 </style>
+
+<script>
+  class PostList extends HTMLElement {
+    #peek!: HTMLElement;
+    #use!: SVGUseElement;
+    #code!: HTMLElement;
+    #frame = 0;
+    #target = { x: 0, y: 0 };
+    #pos = { x: 0, y: 0 };
+    #active = false;
+
+    connectedCallback() {
+      const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!fine || reduce) return;
+      this.#peek = this.querySelector('.peek')!;
+      this.#use = this.querySelector('.peek use')!;
+      this.#code = this.querySelector('.peek-code')!;
+      this.addEventListener('pointerover', this.#onOver);
+      this.addEventListener('pointermove', this.#onMove);
+      this.addEventListener('pointerleave', this.#onLeave);
+    }
+
+    disconnectedCallback() {
+      cancelAnimationFrame(this.#frame);
+      this.removeEventListener('pointerover', this.#onOver);
+      this.removeEventListener('pointermove', this.#onMove);
+      this.removeEventListener('pointerleave', this.#onLeave);
+    }
+
+    #onOver = (event: PointerEvent) => {
+      const row = (event.target as Element).closest<HTMLElement>('.row');
+      if (!row) return;
+      if (this.#use.getAttribute('href') !== row.dataset.cover) {
+        this.#use.setAttribute('href', row.dataset.cover!);
+        this.#code.textContent = row.dataset.code ?? '';
+      }
+      if (!this.#active) {
+        this.#pos = { x: event.clientX, y: event.clientY };
+        this.#active = true;
+        this.#loop();
+      }
+      this.#peek.toggleAttribute('data-show', true);
+    };
+
+    #onMove = (event: PointerEvent) => {
+      this.#target = { x: event.clientX, y: event.clientY };
+    };
+
+    #onLeave = () => {
+      this.#peek.removeAttribute('data-show');
+      this.#active = false;
+    };
+
+    #loop = () => {
+      // 缓动跟随，预览在指针右侧，靠近视口右缘时翻到左侧
+      this.#pos.x += (this.#target.x - this.#pos.x) * 0.18;
+      this.#pos.y += (this.#target.y - this.#pos.y) * 0.18;
+      const width = this.#peek.offsetWidth;
+      const height = this.#peek.offsetHeight;
+      const flip = this.#pos.x + width + 40 > innerWidth;
+      const x = flip ? this.#pos.x - width - 28 : this.#pos.x + 28;
+      const y = Math.min(Math.max(this.#pos.y - height / 2, 72), innerHeight - height - 12);
+      this.#peek.style.transform = `translate(${x}px, ${y}px)`;
+      if (this.#active) this.#frame = requestAnimationFrame(this.#loop);
+    };
+  }
+
+  if (!customElements.get('post-list')) customElements.define('post-list', PostList);
+</script>

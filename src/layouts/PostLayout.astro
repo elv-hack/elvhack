@@ -2,9 +2,10 @@
 import type { MarkdownHeading } from 'astro';
 import '@/styles/prose.css';
 
+import Cover from '@/components/Cover.astro';
 import Giscus from '@/components/Giscus.astro';
 import Toc from '@/components/Toc.astro';
-import { formatDate, postHref, readingMinutes, tagHref, type Post } from '@/lib/posts';
+import { formatDate, postCover, postHref, readingMinutes, tagHref, type Post } from '@/lib/posts';
 import BaseLayout from './BaseLayout.astro';
 
 export interface Props {
@@ -17,6 +18,7 @@ export interface Props {
 const { post, headings, prev, next } = Astro.props;
 const { title, description, pubDate, updatedDate, tags } = post.data;
 const minutes = readingMinutes(post.body);
+const { code, style } = postCover(post);
 ---
 
 <BaseLayout title={title} description={description} article={{ published: pubDate, modified: updatedDate, tags }}>
@@ -24,6 +26,7 @@ const minutes = readingMinutes(post.body);
 
   <article class="container post">
     <header class="post-head">
+      <Cover post={post} name={`cover-${post.id}`} class="head-art" />
       <a href="/posts/" class="back mono">← 全部文章</a>
       {
         tags.length > 0 && (
@@ -57,6 +60,10 @@ const minutes = readingMinutes(post.body);
           <dt>阅读</dt>
           <dd>约 {minutes} 分钟</dd>
         </div>
+        <div>
+          <dt>信号</dt>
+          <dd>{code} · {style}</dd>
+        </div>
       </dl>
     </header>
 
@@ -75,7 +82,7 @@ const minutes = readingMinutes(post.body);
         (prev || next) && (
           <nav class="pager" aria-label="相邻文章">
             {prev ? (
-              <a href={postHref(prev)} rel="prev" class="older">
+              <a href={postHref(prev)} rel="prev" class="older" data-spotlight>
                 <span class="mono">← 更早</span>
                 <span class="t">{prev.data.title}</span>
               </a>
@@ -83,7 +90,7 @@ const minutes = readingMinutes(post.body);
               <span />
             )}
             {next && (
-              <a href={postHref(next)} rel="next" class="newer">
+              <a href={postHref(next)} rel="next" class="newer" data-spotlight>
                 <span class="mono">更新 →</span>
                 <span class="t">{next.data.title}</span>
               </a>
@@ -123,8 +130,36 @@ const minutes = readingMinutes(post.body);
   }
 
   .post-head {
-    max-width: 52rem;
+    position: relative;
     padding-block: var(--space-8) var(--space-7);
+  }
+
+  .post-head > :not(.head-art) {
+    position: relative;
+    z-index: 1;
+    max-width: 52rem;
+  }
+
+  /* 文章的生成封面作为标题区背景，向左、向下淡出 */
+  .post-head :global(.head-art) {
+    --cover-bg: var(--bg);
+    position: absolute;
+    top: var(--space-5);
+    right: 0;
+    width: min(52%, 680px);
+    aspect-ratio: 16 / 10;
+    background: transparent;
+    opacity: 0.9;
+    mask-image: linear-gradient(to right, transparent, #000 55%), linear-gradient(to bottom, #000 55%, transparent);
+    mask-composite: intersect;
+  }
+
+  @media (max-width: 860px) {
+    .post-head :global(.head-art) {
+      top: 0;
+      width: 100%;
+      opacity: 0.35;
+    }
   }
 
   .back {
@@ -165,9 +200,9 @@ const minutes = readingMinutes(post.body);
     line-height: 1.08;
   }
 
-  .lede {
+  .post-head > .lede {
     margin-top: var(--space-5);
-    max-width: 40em;
+    max-width: 30em;
     font-size: var(--step-1);
     color: var(--fg-muted);
     line-height: 1.6;

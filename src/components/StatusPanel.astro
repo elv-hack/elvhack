@@ -1,0 +1,106 @@
+---
+/** 首页状态面板：像仪器规格表一样列出站点的实时数据。 */
+import { build } from '@/lib/build';
+import { formatDate, getTags, type Post } from '@/lib/posts';
+
+export interface Props {
+  posts: Post[];
+}
+
+const { posts } = Astro.props;
+const latest = posts
+  .map((post) => post.data.updatedDate ?? post.data.pubDate)
+  .sort((a, b) => b.valueOf() - a.valueOf())[0];
+const [year, monthDay] = latest ? [formatDate(latest).slice(0, 4), formatDate(latest).slice(5)] : ['—', '—'];
+
+const cells = [
+  { label: 'posts / 文章', value: String(posts.length).padStart(2, '0'), note: '篇已发布' },
+  { label: 'tags / 标签', value: String(getTags(posts).length).padStart(2, '0'), note: '个主题' },
+  { label: 'updated / 更新', value: monthDay, note: year },
+  { label: 'build / 构建', value: build.short, note: build.stamp, href: build.url },
+];
+---
+
+<dl class="status">
+  {
+    cells.map((cell) => (
+      <div class="cell" data-spotlight>
+        <dt class="mono">{cell.label}</dt>
+        <dd class="value">
+          {cell.href ? (
+            <a href={cell.href} target="_blank" rel="noopener" class="mono">
+              {cell.value}
+            </a>
+          ) : (
+            cell.value
+          )}
+        </dd>
+        <dd class="note mono">{cell.note}</dd>
+      </div>
+    ))
+  }
+</dl>
+
+<style>
+  .status {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .cell {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-5);
+    overflow: hidden;
+  }
+
+  .cell + .cell {
+    border-left: 1px solid var(--line);
+  }
+
+  dt {
+    font-size: var(--step--2);
+    color: var(--fg-faint);
+    text-transform: uppercase;
+  }
+
+  .value {
+    font-family: var(--font-display);
+    font-size: var(--step-4);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .value a {
+    font-size: 0.62em;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+  }
+
+  .value a:hover {
+    color: var(--accent-ink);
+  }
+
+  .note {
+    font-size: var(--step--2);
+    color: var(--fg-muted);
+  }
+
+  @media (max-width: 760px) {
+    .status {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cell:nth-child(3) {
+      border-left: 0;
+    }
+
+    .cell:nth-child(n + 3) {
+      border-top: 1px solid var(--line);
+    }
+  }
+</style>

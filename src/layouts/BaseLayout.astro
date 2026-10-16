@@ -9,6 +9,13 @@ import Header from '@/components/Header.astro';
 import { site } from '@/site.config';
 
 export type Props = HeadProps;
+
+// 页面切换：旧页上浮淡出，新页从下方带一点模糊浮入
+const pageMotion = {
+  old: { name: 'page-out', duration: '0.2s', easing: 'ease-in', fillMode: 'both' },
+  new: { name: 'page-in', duration: '0.5s', easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', delay: '0.06s', fillMode: 'both' },
+};
+const pageTransition = { forwards: pageMotion, backwards: pageMotion };
 ---
 
 <!doctype html>
@@ -17,10 +24,40 @@ export type Props = HeadProps;
     <BaseHead {...Astro.props} />
   </head>
   <body>
+    <div id="nav-progress" aria-hidden="true" transition:persist></div>
     <Header />
-    <main id="main">
+    <main id="main" transition:animate={pageTransition}>
       <slot />
     </main>
     <Footer />
   </body>
 </html>
+
+<script>
+  // 卡片聚光灯：带 data-spotlight 的元素记录指针位置，CSS 画径向光斑
+  document.addEventListener(
+    'pointermove',
+    (event) => {
+      const target = (event.target as Element | null)?.closest?.<HTMLElement>('[data-spotlight]');
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      target.style.setProperty('--mx', `${event.clientX - rect.left}px`);
+      target.style.setProperty('--my', `${event.clientY - rect.top}px`);
+    },
+    { passive: true },
+  );
+
+  // 页面切换时顶部的加载条
+  const bar = () => document.getElementById('nav-progress');
+  document.addEventListener('astro:before-preparation', () => {
+    const el = bar();
+    if (!el) return;
+    el.dataset.state = 'idle';
+    void el.offsetWidth;
+    el.dataset.state = 'loading';
+  });
+  document.addEventListener('astro:after-swap', () => {
+    const el = bar();
+    if (el) el.dataset.state = 'done';
+  });
+</script>

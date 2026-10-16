@@ -1,0 +1,195 @@
+---
+/**
+ * 首页 hero 上的仪器面板叠层：裁切角标、刻度尺、跟随指针的十字准星和 UTC 时钟。
+ * 纯装饰，对读屏器隐藏，不拦截指针事件。
+ */
+---
+
+<hero-hud aria-hidden="true">
+  <span class="crop tl"></span>
+  <span class="crop tr"></span>
+  <span class="crop bl"></span>
+  <span class="crop br"></span>
+  <span class="ruler v"></span>
+  <span class="ruler h"></span>
+  <span class="clock mono"><span data-date>0000-00-00</span><span data-time>00:00:00</span> UTC</span>
+  <span class="cross x"></span>
+  <span class="cross y"></span>
+  <span class="coords mono" data-coords></span>
+</hero-hud>
+
+<style>
+  hero-hud {
+    --inset-top: calc(var(--header-h) + var(--space-4));
+    --inset-x: calc(var(--gutter) * 0.5);
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    color: var(--fg-faint);
+  }
+
+  .crop {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 0 solid var(--fg-muted);
+  }
+
+  .tl {
+    top: var(--inset-top);
+    left: var(--inset-x);
+    border-width: 1px 0 0 1px;
+  }
+
+  .tr {
+    top: var(--inset-top);
+    right: var(--inset-x);
+    border-width: 1px 1px 0 0;
+  }
+
+  .bl {
+    bottom: var(--space-5);
+    left: var(--inset-x);
+    border-width: 0 0 1px 1px;
+  }
+
+  .br {
+    bottom: var(--space-5);
+    right: var(--inset-x);
+    border-width: 0 1px 1px 0;
+  }
+
+  /* 刻度：每 10px 一小格，每 100px 一大格 */
+  .ruler {
+    position: absolute;
+    opacity: 0.7;
+  }
+
+  .ruler.v {
+    top: calc(var(--inset-top) + 28px);
+    bottom: calc(var(--space-5) + 28px);
+    right: var(--inset-x);
+    width: 12px;
+    background:
+      repeating-linear-gradient(to bottom, currentColor 0 1px, transparent 1px 100px) right / 12px 100% no-repeat,
+      repeating-linear-gradient(to bottom, currentColor 0 1px, transparent 1px 10px) right / 5px 100% no-repeat;
+  }
+
+  .ruler.h {
+    left: calc(var(--inset-x) + 28px);
+    right: calc(var(--inset-x) + 28px);
+    bottom: var(--space-5);
+    height: 12px;
+    background:
+      repeating-linear-gradient(to right, currentColor 0 1px, transparent 1px 100px) bottom / 100% 12px no-repeat,
+      repeating-linear-gradient(to right, currentColor 0 1px, transparent 1px 10px) bottom / 100% 5px no-repeat;
+  }
+
+  .clock {
+    position: absolute;
+    top: calc(var(--inset-top) + 2px);
+    right: calc(var(--inset-x) + 24px);
+    display: flex;
+    gap: 0.8em;
+    font-size: var(--step--2);
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cross {
+    position: absolute;
+    opacity: 0;
+    background: var(--line-strong);
+    transition: opacity 0.3s;
+  }
+
+  .cross.x {
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 1px;
+    transform: translateY(var(--hy, -10px));
+  }
+
+  .cross.y {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    transform: translateX(var(--hx, -10px));
+  }
+
+  .coords {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 0.2em 0.5em;
+    font-size: var(--step--2);
+    color: var(--fg-muted);
+    background: color-mix(in oklab, var(--bg) 70%, transparent);
+    font-variant-numeric: tabular-nums;
+    opacity: 0;
+    transform: translate(calc(var(--hx, 0px) + 12px), calc(var(--hy, 0px) + 12px));
+    transition: opacity 0.3s;
+  }
+
+  hero-hud[data-active] :is(.cross, .coords) {
+    opacity: 1;
+  }
+
+  @media (max-width: 640px) {
+    .ruler.v,
+    .clock [data-date] {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  const two = (n: number) => String(n).padStart(2, '0');
+
+  class HeroHud extends HTMLElement {
+    #host: HTMLElement | null = null;
+    #coords!: HTMLElement;
+    #timer = 0;
+
+    connectedCallback() {
+      this.#coords = this.querySelector('[data-coords]')!;
+      const date = this.querySelector('[data-date]')!;
+      const time = this.querySelector('[data-time]')!;
+      const tick = () => {
+        const now = new Date();
+        date.textContent = `${now.getUTCFullYear()}-${two(now.getUTCMonth() + 1)}-${two(now.getUTCDate())}`;
+        time.textContent = `${two(now.getUTCHours())}:${two(now.getUTCMinutes())}:${two(now.getUTCSeconds())}`;
+      };
+      tick();
+      this.#timer = window.setInterval(tick, 1000);
+
+      if (!matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+      this.#host = this.closest('section');
+      this.#host?.addEventListener('pointermove', this.#onMove);
+      this.#host?.addEventListener('pointerleave', this.#onLeave);
+    }
+
+    disconnectedCallback() {
+      clearInterval(this.#timer);
+      this.#host?.removeEventListener('pointermove', this.#onMove);
+      this.#host?.removeEventListener('pointerleave', this.#onLeave);
+    }
+
+    #onMove = (event: PointerEvent) => {
+      const rect = this.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      this.style.setProperty('--hx', `${x}px`);
+      this.style.setProperty('--hy', `${y}px`);
+      this.#coords.textContent = `${(x / rect.width).toFixed(3)} , ${(y / rect.height).toFixed(3)}`;
+      this.toggleAttribute('data-active', true);
+    };
+
+    #onLeave = () => this.removeAttribute('data-active');
+  }
+
+  if (!customElements.get('hero-hud')) customElements.define('hero-hud', HeroHud);
+</script>

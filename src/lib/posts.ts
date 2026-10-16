@@ -1,6 +1,10 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
 
+import { coverInfo } from './generative';
+
 export type Post = CollectionEntry<'posts'>;
+
+export const postCover = (post: Post) => coverInfo(post.id, post.data.cover);
 
 export interface Tag {
   name: string;

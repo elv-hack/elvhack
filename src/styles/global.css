@@ -196,11 +196,91 @@ p {
   font-size: var(--step-1);
 }
 
-/* 明暗切换时的圆形揭幕 */
+html {
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* 明暗切换时的圆形揭幕：期间取消所有具名过渡，让整页一起被揭开 */
+html.theme-vt *,
+html.theme-vt *::before,
+html.theme-vt *::after {
+  view-transition-name: none !important;
+}
+
 html.theme-vt::view-transition-old(root),
 html.theme-vt::view-transition-new(root) {
   animation: none !important;
   mix-blend-mode: normal;
+}
+
+/* 页面切换 */
+@keyframes page-out {
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+    filter: blur(6px);
+  }
+}
+
+#nav-progress {
+  position: fixed;
+  inset: 0 auto auto 0;
+  z-index: 70;
+  width: 100%;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#nav-progress[data-state='loading'] {
+  opacity: 1;
+  transform: scaleX(0.7);
+  transition: transform 2.5s cubic-bezier(0.1, 0.6, 0.2, 1);
+}
+
+#nav-progress[data-state='done'] {
+  opacity: 0;
+  transform: scaleX(1);
+  transition:
+    transform 0.2s ease,
+    opacity 0.4s ease 0.2s;
+}
+
+/* 卡片聚光灯 */
+[data-spotlight] {
+  position: relative;
+  isolation: isolate;
+}
+
+[data-spotlight]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    380px circle at var(--mx, -500px) var(--my, -500px),
+    color-mix(in oklab, var(--accent) 9%, transparent),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.35s;
+}
+
+[data-spotlight]:hover::after {
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -8,7 +8,6 @@
 <field-canvas>
   <canvas aria-hidden="true"></canvas>
   <p class="readout mono" aria-hidden="true">
-    <span data-out="xy">x 0.000 · y 0.000</span>
     <span data-out="stats">0 particles</span>
   </p>
 </field-canvas>
@@ -28,8 +27,8 @@
 
   .readout {
     position: absolute;
-    right: var(--gutter);
-    bottom: var(--space-6);
+    right: calc(var(--gutter) * 0.5 + 24px);
+    bottom: calc(var(--space-5) + 22px);
     display: flex;
     flex-direction: column;
     align-items: end;
@@ -110,7 +109,6 @@
   class FieldCanvas extends HTMLElement {
     #canvas!: HTMLCanvasElement;
     #ctx!: CanvasRenderingContext2D;
-    #xy!: HTMLElement;
     #stats!: HTMLElement;
     #particles = new Float32Array(0);
     #count = 0;
@@ -130,7 +128,6 @@
     connectedCallback() {
       this.#canvas = this.querySelector('canvas')!;
       this.#ctx = this.#canvas.getContext('2d', { alpha: false })!;
-      this.#xy = this.querySelector('[data-out="xy"]')!;
       this.#stats = this.querySelector('[data-out="stats"]')!;
       this.#reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
       this.#readColors();
@@ -181,7 +178,6 @@
       this.#pointer.x = (event.clientX - rect.left) * this.#dpr;
       this.#pointer.y = (event.clientY - rect.top) * this.#dpr;
       this.#pointer.active = true;
-      this.#xy.textContent = `x ${(this.#pointer.x / this.#w).toFixed(3)} · y ${(this.#pointer.y / this.#h).toFixed(3)}`;
     };
 
     #onLeave = () => {

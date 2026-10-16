@@ -1,0 +1,111 @@
+---
+/**
+ * 首页大标题：进入时逐字“解码”，之后每个字母的字重随指针距离变化
+ * （Space Grotesk 可变字体 300–700），越靠近指针越细，像被信号扫过。
+ */
+export interface Props {
+  text: string;
+}
+
+const { text } = Astro.props;
+---
+
+<word-mark>
+  <span class="sr-only">{text}</span>
+  <span class="letters" aria-hidden="true">{[...text].map((char) => <span class="ch">{char}</span>)}</span>
+</word-mark>
+
+<style>
+  word-mark {
+    display: inline-block;
+  }
+
+  .letters {
+    display: inline-flex;
+  }
+
+  .ch {
+    display: inline-block;
+    font-weight: 700;
+    transition: font-weight 0.35s var(--ease-out);
+  }
+</style>
+
+<script>
+  const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&';
+  const MAX = 700;
+  const MIN = 300;
+
+  class WordMark extends HTMLElement {
+    #letters: HTMLElement[] = [];
+    #host: HTMLElement | null = null;
+    #frame = 0;
+    #decodeFrame = 0;
+    #decoding = false;
+    #pointer = { x: 0, y: 0 };
+
+    connectedCallback() {
+      this.#letters = [...this.querySelectorAll<HTMLElement>('.ch')];
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      this.#decode();
+      if (!matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+      this.#host = this.closest('section') ?? this;
+      this.#host.addEventListener('pointermove', this.#onMove);
+      this.#host.addEventListener('pointerleave', this.#onLeave);
+    }
+
+    disconnectedCallback() {
+      cancelAnimationFrame(this.#frame);
+      cancelAnimationFrame(this.#decodeFrame);
+      this.#host?.removeEventListener('pointermove', this.#onMove);
+      this.#host?.removeEventListener('pointerleave', this.#onLeave);
+    }
+
+    #decode() {
+      const finals = this.#letters.map((el) => el.textContent ?? '');
+      const settle = finals.map((_, i) => 0.25 + (i / finals.length) * 0.55 + Math.random() * 0.2);
+      const start = performance.now();
+      const duration = 1100;
+      let last = 0;
+      this.#decoding = true;
+      const tick = (now: number) => {
+        const progress = Math.min(1, (now - start) / duration);
+        if (now - last > 45 || progress === 1) {
+          last = now;
+          this.#letters.forEach((el, i) => {
+            el.textContent = progress >= settle[i] ? finals[i] : GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+            // 解码时字重在细与粗之间抖动
+            el.style.fontWeight = progress >= settle[i] ? '' : String(MIN + Math.round(Math.random() * 4) * 100);
+          });
+        }
+        if (progress < 1) this.#decodeFrame = requestAnimationFrame(tick);
+        else this.#decoding = false;
+      };
+      this.#decodeFrame = requestAnimationFrame(tick);
+    }
+
+    #onMove = (event: PointerEvent) => {
+      this.#pointer = { x: event.clientX, y: event.clientY };
+      if (this.#decoding) return;
+      cancelAnimationFrame(this.#frame);
+      this.#frame = requestAnimationFrame(this.#update);
+    };
+
+    #update = () => {
+      const radius = Math.max(220, innerWidth * 0.18);
+      for (const el of this.#letters) {
+        const rect = el.getBoundingClientRect();
+        const dist = Math.hypot(rect.left + rect.width / 2 - this.#pointer.x, rect.top + rect.height / 2 - this.#pointer.y);
+        const t = Math.max(0, 1 - dist / radius);
+        el.style.fontWeight = String(Math.round(MAX - (MAX - MIN) * t * t));
+      }
+    };
+
+    #onLeave = () => {
+      cancelAnimationFrame(this.#frame);
+      for (const el of this.#letters) el.style.fontWeight = '';
+    };
+  }
+
+  if (!customElements.get('word-mark')) customElements.define('word-mark', WordMark);
+</script>

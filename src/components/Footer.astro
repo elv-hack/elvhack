@@ -1,4 +1,5 @@
 ---
+import { build } from '@/lib/build';
 import { site } from '@/site.config';
 
 const year = new Date().getFullYear();
@@ -12,7 +13,11 @@ const year = new Date().getFullYear();
       <li><a href="/rss.xml">RSS</a></li>
       <li><a href="/sitemap-index.xml">Sitemap</a></li>
     </ul>
-    <p class="copy mono">© {year} {site.title} · Built with Astro, served by Cloudflare</p>
+    <p class="copy mono">
+      © {year} {site.title} · build {build.url ? <a href={build.url} target="_blank" rel="noopener">{build.short}</a> : build.short} · {
+        build.stamp
+      } · Astro × Cloudflare
+    </p>
   </div>
   <div class="wordmark" aria-hidden="true">ELVHACK</div>
 </footer>
@@ -76,6 +81,15 @@ const year = new Date().getFullYear();
     grid-column: 1 / -1;
     color: var(--fg-faint);
     font-size: var(--step--2);
+  }
+
+  .copy a {
+    color: var(--fg-muted);
+    text-decoration: none;
+  }
+
+  .copy a:hover {
+    color: var(--accent-ink);
   }
 
   .wordmark {

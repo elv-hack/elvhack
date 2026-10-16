@@ -1,36 +1,43 @@
 ---
+import FeaturedPost from '@/components/FeaturedPost.astro';
 import FieldCanvas from '@/components/FieldCanvas.astro';
+import HeroHud from '@/components/HeroHud.astro';
+import Marquee from '@/components/Marquee.astro';
 import PostList from '@/components/PostList.astro';
-import ScrambleText from '@/components/ScrambleText.astro';
+import StatusPanel from '@/components/StatusPanel.astro';
 import TagCloud from '@/components/TagCloud.astro';
+import Wordmark from '@/components/Wordmark.astro';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { getPosts, getTags } from '@/lib/posts';
 import { site } from '@/site.config';
 
 const posts = await getPosts();
-const latest = posts.slice(0, 8);
+const [featured, ...rest] = posts;
+const more = rest.slice(0, 6);
 const tags = getTags(posts);
 ---
 
 <BaseLayout>
   <section class="hero" aria-labelledby="hero-title">
     <FieldCanvas />
+    <HeroHud />
     <div class="container hero-inner">
       <p class="kicker mono">[ signal / noise ] — 个人实验室</p>
-      <h1 id="hero-title" class="wordmark">
-        <ScrambleText text="ELVHACK" trigger="load" />
-      </h1>
+      <h1 id="hero-title" class="wordmark"><Wordmark text="ELVHACK" /></h1>
       <p class="tagline">{site.tagline}<br />写下做过的东西，留下能玩的实验。</p>
       <a href="#latest" class="scroll mono">↓ 最近的信号</a>
     </div>
   </section>
 
+  <Marquee />
+
   <section id="latest" class="container block">
     <h2 class="section-head">
-      <span><span class="num">[01]</span> 最近</span>
-      {posts.length > latest.length && <a href="/posts/">全部 {posts.length} 篇 →</a>}
+      <span><span class="num">[01]</span> 最新</span>
+      {posts.length > 1 && <a href="/posts/">全部 {posts.length} 篇 →</a>}
     </h2>
-    {latest.length > 0 ? <PostList posts={latest} /> : <p class="empty">还没有文章。信号正在路上。</p>}
+    {featured ? <FeaturedPost post={featured} /> : <p class="empty">还没有文章。信号正在路上。</p>}
+    {more.length > 0 && <PostList posts={more} start={2} />}
   </section>
 
   {
@@ -46,6 +53,14 @@ const tags = getTags(posts);
       </section>
     )
   }
+
+  <section class="container block">
+    <h2 class="section-head">
+      <span><span class="num">[03]</span> 状态</span>
+      <a href="/about/">关于本站 →</a>
+    </h2>
+    <StatusPanel posts={posts} />
+  </section>
 </BaseLayout>
 
 <style>
@@ -53,9 +68,10 @@ const tags = getTags(posts);
     position: relative;
     display: flex;
     align-items: end;
-    min-height: max(560px, 100svh);
+    min-height: max(600px, 100svh);
     margin-top: calc(var(--header-h) * -1);
     padding-block: calc(var(--header-h) + var(--space-7)) var(--space-8);
+    cursor: crosshair;
   }
 
   /* 底部渐隐进页面背景 */
@@ -70,12 +86,13 @@ const tags = getTags(posts);
 
   .hero-inner {
     position: relative;
-    z-index: 1;
+    z-index: 2;
     pointer-events: none;
   }
 
   .hero-inner a {
     pointer-events: auto;
+    cursor: pointer;
   }
 
   .kicker {
@@ -92,6 +109,7 @@ const tags = getTags(posts);
     font-weight: 700;
     line-height: 0.86;
     letter-spacing: -0.055em;
+    white-space: nowrap;
   }
 
   .tagline {
@@ -122,10 +140,14 @@ const tags = getTags(posts);
   }
 
   .block {
+    margin-top: var(--space-9);
+  }
+
+  #latest {
     margin-top: var(--space-8);
   }
 
-  .hero + .block {
+  #latest :global(post-list) {
     margin-top: var(--space-6);
   }
 

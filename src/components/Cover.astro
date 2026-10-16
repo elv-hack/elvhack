@@ -1,0 +1,65 @@
+---
+/**
+ * 文章的生成封面。图形来自 /covers/<id>.svg，通过 <use> 引用，
+ * 浏览器只下载一次，并从这里继承 color / --cover-accent / --cover-bg 来适配明暗主题。
+ */
+import { COVER_H, COVER_W } from '@/lib/generative';
+import { postCover, type Post } from '@/lib/posts';
+
+export interface Props {
+  post: Post;
+  /** 显示左下角的信号编号 */
+  label?: boolean;
+  /** 页面切换时参与形变的名字 */
+  name?: string;
+  class?: string;
+}
+
+const { post, label = false, name, class: className } = Astro.props;
+const { file, style, code } = postCover(post);
+---
+
+<div class:list={['cover', className]} data-style={style} transition:name={name}>
+  <svg viewBox={`0 0 ${COVER_W} ${COVER_H}`} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <use href={`${file}#art`}></use>
+  </svg>
+  {
+    label && (
+      <span class="label mono" aria-hidden="true">
+        <span>{code}</span>
+        <span>{style}</span>
+      </span>
+    )
+  }
+</div>
+
+<style>
+  .cover {
+    --cover-accent: var(--accent-ink);
+    --cover-bg: var(--bg-elev);
+    position: relative;
+    overflow: hidden;
+    color: var(--fg);
+    background: var(--cover-bg);
+  }
+
+  svg {
+    width: 100%;
+    height: 100%;
+    transition: transform 0.8s var(--ease-out);
+  }
+
+  .label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5em 0.8em;
+    font-size: var(--step--2);
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    background: linear-gradient(to top, var(--cover-bg) 30%, transparent);
+  }
+</style>
