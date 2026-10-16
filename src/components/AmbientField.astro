@@ -124,10 +124,10 @@
         this.style.setProperty('--c1', `${((body.right / rect.width) * 100).toFixed(1)}%`);
         this.style.setProperty('--calm', '0.3');
       } else {
-        // 窄屏正文铺满，整体压暗
+        // 窄屏正文铺满，整体稍微压暗
         this.style.setProperty('--c0', '-10%');
         this.style.setProperty('--c1', '110%');
-        this.style.setProperty('--calm', '0.45');
+        this.style.setProperty('--calm', '0.6');
       }
       this.#backdrop?.resize(rect.width, rect.height);
     }
