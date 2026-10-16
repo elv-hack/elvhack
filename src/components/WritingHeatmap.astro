@@ -1,0 +1,171 @@
+---
+/** 写作热力图：最近 53 周，每格一天，颜色按当天发布的篇数加深。构建时生成，不需要 JS。 */
+import { isoDay, type Post } from '@/lib/posts';
+
+export interface Props {
+  posts: Post[];
+}
+
+const { posts } = Astro.props;
+const DAY = 86_400_000;
+
+const counts = new Map<string, number>();
+for (const post of posts) {
+  const key = isoDay(post.data.pubDate);
+  counts.set(key, (counts.get(key) ?? 0) + 1);
+}
+
+// 以构建当天为终点，往前对齐到 53 周前的周一
+const today = new Date(`${isoDay(new Date())}T00:00:00Z`);
+const weekday = (today.getUTCDay() + 6) % 7; // 周一 = 0
+const start = new Date(today.valueOf() - (52 * 7 + weekday) * DAY);
+
+const weeks: { key: string; count: number; future: boolean }[][] = [];
+const months: { label: string; col: number }[] = [];
+for (let col = 0; col < 53; col++) {
+  const week = [];
+  for (let row = 0; row < 7; row++) {
+    const date = new Date(start.valueOf() + (col * 7 + row) * DAY);
+    const key = date.toISOString().slice(0, 10);
+    week.push({ key, count: counts.get(key) ?? 0, future: date > today });
+    if (row === 0 && (col === 0 || date.getUTCDate() <= 7)) {
+      months.push({ label: `${date.getUTCMonth() + 1}月`, col });
+    }
+  }
+  weeks.push(week);
+}
+
+const level = (count: number) => (count >= 4 ? 4 : count);
+const activeDays = [...counts.keys()].filter((key) => key >= start.toISOString().slice(0, 10)).length;
+---
+
+<figure class="heatmap">
+  <div class="scroll">
+    <div class="grid" role="img" aria-label={`最近一年有 ${activeDays} 天发布了文章`}>
+      <div class="months" aria-hidden="true">
+        {months.map((m) => <span style={`grid-column: ${m.col + 1}`}>{m.label}</span>)}
+      </div>
+      <div class="days mono" aria-hidden="true">
+        <span>一</span><span></span><span>三</span><span></span><span>五</span><span></span><span></span>
+      </div>
+      <div class="cells">
+        {
+          weeks.map((week) =>
+            week.map((day) => (
+              <span
+                class="cell"
+                data-level={day.future ? undefined : level(day.count)}
+                data-future={day.future ? '' : undefined}
+                title={day.future ? undefined : `${day.key} · ${day.count ? `${day.count} 篇` : '没有发布'}`}
+              />
+            )),
+          )
+        }
+      </div>
+    </div>
+  </div>
+  <figcaption class="mono">
+    <span>最近一年 · {activeDays} 天有新文章</span>
+    <span class="legend" aria-hidden="true">
+      少 <i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i> 多
+    </span>
+  </figcaption>
+</figure>
+
+<style>
+  .heatmap {
+    margin: 0;
+  }
+
+  .scroll {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    padding-bottom: var(--space-2);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1.6rem 1fr;
+    grid-template-rows: auto auto;
+    gap: 0.35rem 0.4rem;
+    min-width: 640px;
+  }
+
+  .months {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: repeat(53, 1fr);
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--fg-faint);
+    white-space: nowrap;
+  }
+
+  .days {
+    grid-row: 2;
+    display: grid;
+    grid-template-rows: repeat(7, 1fr);
+    font-size: 0.62rem;
+    color: var(--fg-faint);
+    line-height: 1;
+    align-items: center;
+  }
+
+  .cells {
+    grid-row: 2;
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: repeat(53, 1fr);
+    grid-template-rows: repeat(7, auto);
+    grid-auto-flow: column;
+    gap: 3px;
+  }
+
+  .cell,
+  .legend i {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    background: var(--line);
+  }
+
+  .cell[data-future] {
+    background: transparent;
+  }
+
+  [data-level='1'] {
+    background: color-mix(in oklab, var(--accent-ink) 35%, var(--line));
+  }
+
+  [data-level='2'] {
+    background: color-mix(in oklab, var(--accent-ink) 60%, var(--line));
+  }
+
+  [data-level='3'] {
+    background: color-mix(in oklab, var(--accent-ink) 80%, var(--line));
+  }
+
+  [data-level='4'] {
+    background: var(--accent);
+    box-shadow: 0 0 8px color-mix(in oklab, var(--accent) 50%, transparent);
+  }
+
+  figcaption {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-top: var(--space-3);
+    font-size: var(--step--2);
+    color: var(--fg-muted);
+  }
+
+  .legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .legend i {
+    display: inline-block;
+    width: 10px;
+  }
+</style>

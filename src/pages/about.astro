@@ -1,35 +1,480 @@
 ---
-import '@/styles/prose.css';
+import { profile } from '@/data/profile';
 import BaseLayout from '@/layouts/BaseLayout.astro';
+import { build } from '@/lib/build';
+import { avatarSvg, hash } from '@/lib/generative';
 import { site } from '@/site.config';
+
+const avatar = avatarSvg(profile.handle);
+const signal = `ID-${hash(profile.handle).toString(16).padStart(8, '0').slice(0, 6).toUpperCase()}`;
+
+const colophon = [
+  { label: '框架', value: 'Astro 7，静态生成' },
+  { label: '托管', value: 'Cloudflare Pages' },
+  { label: '字体', value: 'Space Grotesk · JetBrains Mono · 思源宋体' },
+  { label: '封面', value: '构建时由文章 id 生成的 SVG' },
+  { label: '搜索', value: 'Pagefind，构建时建索引' },
+  { label: '评论', value: 'Giscus（GitHub Discussions）' },
+  { label: '构建', value: `${build.short} · ${build.stamp}`, href: build.url },
+];
 ---
 
-<BaseLayout title="关于" description="关于 Elvhack 这个站点。">
-  <header class="container page-intro">
-    <p class="kicker">/about</p>
-    <h1>关于</h1>
-    <p>{site.tagline}</p>
+<BaseLayout title="关于" description={`${profile.handle}：${profile.role}。${profile.intro[0]}`}>
+  <header class="container head">
+    <figure class="avatar">
+      <span class="frame" set:html={avatar} />
+      <figcaption class="mono">{signal}</figcaption>
+    </figure>
+    <div class="who">
+      <p class="kicker mono">
+        /about — dossier
+        {profile.sample && <span class="sample" title="这些资料是占位用的示例，等待站长替换">示例资料 · 待替换</span>}
+      </p>
+      <h1>{profile.handle}</h1>
+      <p class="role mono">{profile.role}</p>
+      {profile.intro.map((line) => <p class="intro">{line}</p>)}
+    </div>
   </header>
 
-  <div class="container">
-    <div class="prose about">
-      <p>
-        Elvhack 是一个个人站点：写下做过的东西、想清楚的问题，偶尔放一些可以直接在页面里玩的交互实验。
-      </p>
-      <h2 id="site">这个站</h2>
+  <div class="container dossier">
+    <section class="spec" aria-labelledby="spec-title">
+      <h2 id="spec-title" class="section-head"><span><span class="num">[01]</span> 档案</span></h2>
+      <dl>
+        {
+          profile.spec.map((row) => (
+            <div>
+              <dt class="mono">{row.label}</dt>
+              <dd>{row.value}</dd>
+            </div>
+          ))
+        }
+        <div>
+          <dt class="mono">在线</dt>
+          <dd><a href={site.social.github} target="_blank" rel="me noopener">github.com/vx-zjr ↗</a></dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="now" aria-labelledby="now-title">
+      <h2 id="now-title" class="section-head"><span><span class="num">[02]</span> 现在</span></h2>
+      <ul>{profile.now.items.map((item) => <li>{item}</li>)}</ul>
+      <p class="updated mono">更新于 {profile.now.updated}</p>
+    </section>
+
+    <section class="stack" aria-labelledby="stack-title">
+      <h2 id="stack-title" class="section-head"><span><span class="num">[03]</span> 工具箱</span></h2>
+      {
+        profile.stack.map((group) => (
+          <div class="group">
+            <h3 class="mono">{group.group}</h3>
+            <ul>
+              {group.items.map((item) => (
+                <li>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </section>
+
+    <section class="timeline" aria-labelledby="timeline-title">
+      <h2 id="timeline-title" class="section-head"><span><span class="num">[04]</span> 时间线</span></h2>
+      <ol>
+        {
+          profile.timeline.map((event) => (
+            <li>
+              <span class="dot" aria-hidden="true" />
+              <span class="year mono">{event.year}</span>
+              <span class="text">
+                <strong>{event.title}</strong>
+                <span>{event.note}</span>
+              </span>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="colophon" aria-labelledby="colophon-title">
+      <h2 id="colophon-title" class="section-head"><span><span class="num">[05]</span> 本站</span></h2>
+      <dl>
+        {
+          colophon.map((row) => (
+            <div>
+              <dt class="mono">{row.label}</dt>
+              <dd>
+                {row.href ? (
+                  <a href={row.href} target="_blank" rel="noopener" class="mono">
+                    {row.value}
+                  </a>
+                ) : (
+                  row.value
+                )}
+              </dd>
+            </div>
+          ))
+        }
+      </dl>
+    </section>
+
+    <section class="contact" aria-labelledby="contact-title">
+      <h2 id="contact-title" class="section-head"><span><span class="num">[06]</span> 联系</span></h2>
       <ul>
-        <li>用 <a href="https://astro.build" target="_blank" rel="noopener">Astro</a> 生成静态页面，文章是 Markdown / MDX。</li>
-        <li>托管在 Cloudflare Pages，源码在 <a href={site.social.github} target="_blank" rel="noopener">GitHub</a>。</li>
-        <li>可以通过 <a href="/rss.xml">RSS</a> 订阅更新。</li>
+        <li><a href={site.social.github} target="_blank" rel="me noopener" data-spotlight><span class="mono">github</span> vx-zjr ↗</a></li>
+        <li><a href="/rss.xml" data-spotlight><span class="mono">rss</span> 订阅更新</a></li>
       </ul>
-      <h2 id="contact">联系</h2>
-      <p>在 <a href={site.social.github} target="_blank" rel="noopener">GitHub</a> 上找到我。</p>
-    </div>
+      <p class="hint mono">按 <kbd>⌘K</kbd> 搜索全站 · 输入 ↑↑↓↓←→←→BA 有惊喜</p>
+    </section>
   </div>
 </BaseLayout>
 
 <style>
-  .about {
-    max-width: var(--measure);
+  .head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-7);
+    align-items: end;
+    padding-block: var(--space-8) var(--space-7);
+  }
+
+  .avatar {
+    margin: 0;
+  }
+
+  .frame {
+    position: relative;
+    display: block;
+    width: clamp(140px, 18vw, 220px);
+    padding: var(--space-3);
+    border: 1px solid var(--line-strong);
+    color: var(--fg);
+    background:
+      linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 10% 10%,
+      linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 10% 10%,
+      var(--bg-elev);
+  }
+
+  /* 四角的十字准星 */
+  .frame::before,
+  .frame::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 0 solid var(--accent-ink);
+  }
+
+  .frame::before {
+    top: -5px;
+    left: -5px;
+    border-width: 2px 0 0 2px;
+  }
+
+  .frame::after {
+    right: -5px;
+    bottom: -5px;
+    border-width: 0 2px 2px 0;
+  }
+
+  .frame :global(svg) {
+    width: 100%;
+    height: auto;
+  }
+
+  .avatar figcaption {
+    margin-top: var(--space-2);
+    font-size: var(--step--2);
+    color: var(--fg-muted);
+  }
+
+  .kicker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--step--1);
+    color: var(--accent-ink);
+  }
+
+  .sample {
+    padding: 0.1em 0.6em;
+    border: 1px dashed var(--line-strong);
+    border-radius: 999px;
+    font-size: var(--step--2);
+    color: var(--fg-muted);
+  }
+
+  h1 {
+    margin-top: var(--space-3);
+    font-family: var(--font-display);
+    font-size: var(--step-4);
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .role {
+    margin-top: var(--space-3);
+    font-size: var(--step--1);
+    color: var(--fg-muted);
+  }
+
+  .intro {
+    margin-top: var(--space-3);
+    max-width: 38em;
+    font-size: var(--step-1);
+    line-height: 1.7;
+  }
+
+  .intro + .intro {
+    margin-top: var(--space-2);
+    color: var(--fg-muted);
+    font-size: var(--step-0);
+  }
+
+  .dossier {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-8) var(--space-7);
+  }
+
+  .spec,
+  .timeline {
+    grid-column: 1 / -1;
+  }
+
+  dl {
+    display: grid;
+    border-top: 1px solid var(--line);
+  }
+
+  dl > div {
+    display: grid;
+    grid-template-columns: 8rem 1fr;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .spec dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-7);
+  }
+
+  dt {
+    font-size: var(--step--2);
+    color: var(--fg-faint);
+    text-transform: uppercase;
+    padding-top: 0.25em;
+  }
+
+  dd a {
+    text-decoration-color: var(--accent-ink);
+  }
+
+  .now ul,
+  .stack ul,
+  .contact ul {
+    padding: 0;
+    list-style: none;
+  }
+
+  .now li {
+    position: relative;
+    padding: var(--space-3) 0 var(--space-3) 1.4em;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .now li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent-ink);
+    font-family: var(--font-mono);
+  }
+
+  .updated {
+    margin-top: var(--space-3);
+    font-size: var(--step--2);
+    color: var(--fg-faint);
+  }
+
+  .group + .group {
+    margin-top: var(--space-4);
+  }
+
+  .group h3 {
+    margin-bottom: var(--space-2);
+    font-size: var(--step--2);
+    font-weight: 400;
+    color: var(--fg-faint);
+    text-transform: uppercase;
+  }
+
+  .group ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .group li {
+    padding: 0.25em 0.75em;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+  }
+
+  .timeline ol {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 0;
+    list-style: none;
+  }
+
+  /* 横向的时间轴，穿过每个圆点的圆心 */
+  .timeline ol::before {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--line-strong);
+  }
+
+  .timeline li {
+    display: grid;
+    gap: var(--space-2);
+    padding-right: var(--space-5);
+  }
+
+  .timeline li .dot {
+    margin-bottom: var(--space-2);
+  }
+
+  .year {
+    font-size: var(--step-1);
+    font-weight: 600;
+    color: var(--accent-ink);
+  }
+
+  .dot {
+    position: relative;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--accent-ink);
+  }
+
+  .timeline li:first-child .dot {
+    background: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 25%, transparent);
+  }
+
+  .text {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .text strong {
+    font-family: var(--font-serif);
+    font-weight: 600;
+  }
+
+  .text span {
+    font-size: var(--step--1);
+    color: var(--fg-muted);
+    line-height: 1.6;
+  }
+
+  .contact ul {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .contact a {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    text-decoration: none;
+    font-size: var(--step-1);
+    transition: border-color 0.2s;
+  }
+
+  .contact a:hover {
+    border-color: var(--accent-ink);
+  }
+
+  .contact a .mono {
+    width: 4rem;
+    font-size: var(--step--2);
+    color: var(--accent-ink);
+    text-transform: uppercase;
+  }
+
+  .hint {
+    margin-top: var(--space-4);
+    font-size: var(--step--2);
+    color: var(--fg-faint);
+  }
+
+  .hint kbd {
+    padding: 0.05em 0.4em;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+  }
+
+  @media (max-width: 860px) {
+    .head {
+      grid-template-columns: 1fr;
+      gap: var(--space-5);
+    }
+
+    .dossier {
+      grid-template-columns: 1fr;
+    }
+
+    .spec dl {
+      grid-template-columns: 1fr;
+    }
+
+    .timeline ol {
+      grid-template-columns: 1fr;
+      gap: var(--space-5);
+      padding-left: var(--space-5);
+    }
+
+    .timeline ol::before {
+      top: 0;
+      bottom: 0;
+      left: 5px;
+      right: auto;
+      width: 1px;
+      height: auto;
+    }
+
+    .timeline li {
+      grid-template-columns: auto;
+      position: relative;
+    }
+
+    .timeline li .dot {
+      position: absolute;
+      left: calc(var(--space-5) * -1);
+      top: 0.6em;
+      margin: 0;
+    }
+  }
+
+  @media (max-width: 480px) {
+    dl > div {
+      grid-template-columns: 5.5rem 1fr;
+    }
   }
 </style>

@@ -58,3 +58,31 @@ const yearFormat = new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: TZ
 export const formatDate = (date: Date) => dayFormat.format(date).replaceAll('/', '.');
 
 export const postYear = (date: Date) => Number(yearFormat.format(date));
+
+/** 字数：中文按字、英文按词 */
+export function wordCount(body = ''): number {
+  const text = body
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/^(import|export)\s.*$/gm, '')
+    .replace(/<[^>]+>/g, '');
+  const cjk = text.match(CJK)?.length ?? 0;
+  const words = text.replace(CJK, ' ').match(/[A-Za-z0-9][\w'-]*/g)?.length ?? 0;
+  return cjk + words;
+}
+
+const isoDayFormat = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TZ });
+
+/** 2026-10-16（按上海时区） */
+export const isoDay = (date: Date) => isoDayFormat.format(date);
+
+/** 按共同标签数排序的相关文章，标签数相同时新的在前 */
+export function relatedPosts(post: Post, posts: Post[], limit = 3): Post[] {
+  const tags = new Set(post.data.tags.map(tagSlug));
+  return posts
+    .filter((other) => other.id !== post.id)
+    .map((other) => ({ other, score: other.data.tags.filter((tag) => tags.has(tagSlug(tag))).length }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score || b.other.data.pubDate.valueOf() - a.other.data.pubDate.valueOf())
+    .slice(0, limit)
+    .map(({ other }) => other);
+}

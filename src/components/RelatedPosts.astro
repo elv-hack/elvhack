@@ -1,0 +1,119 @@
+---
+/** 文末的相关文章：按共同标签挑出最多三篇，配生成封面。 */
+import { formatDate, postCover, postHref, type Post } from '@/lib/posts';
+import Cover from './Cover.astro';
+
+export interface Props {
+  posts: Post[];
+}
+
+const { posts } = Astro.props;
+---
+
+{
+  posts.length > 0 && (
+    <section class="related" aria-labelledby="related-title">
+      <h2 id="related-title" class="section-head">
+        <span>
+          <span class="num">[+]</span> 相关信号
+        </span>
+      </h2>
+      <ul>
+        {posts.map((post) => (
+          <li>
+            <a href={postHref(post)} class="item" data-spotlight>
+              <Cover post={post} class="thumb" />
+              <span class="meta mono">
+                {postCover(post).code} · {formatDate(post.data.pubDate)}
+              </span>
+              <span class="title">{post.data.title}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+<style>
+  .related {
+    margin-top: var(--space-8);
+  }
+
+  ul {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+    padding: 0;
+    list-style: none;
+  }
+
+  .item {
+    display: grid;
+    gap: var(--space-2);
+    height: 100%;
+    padding-bottom: var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: clip;
+    text-decoration: none;
+    transition: border-color 0.3s;
+  }
+
+  .item:hover {
+    border-color: var(--accent-ink);
+  }
+
+  .item :global(.thumb) {
+    aspect-ratio: 16 / 10;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .item:hover :global(.thumb svg) {
+    transform: scale(1.06);
+  }
+
+  .meta {
+    padding-inline: var(--space-4);
+    margin-top: var(--space-1);
+    font-size: var(--step--2);
+    color: var(--accent-ink);
+  }
+
+  .title {
+    padding-inline: var(--space-4);
+    font-family: var(--font-serif);
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  @media (max-width: 640px) {
+    ul {
+      grid-template-columns: 1fr;
+    }
+
+    .item {
+      grid-template-columns: 7rem 1fr;
+      grid-template-rows: auto 1fr;
+      align-items: start;
+      padding-bottom: 0;
+    }
+
+    .item :global(.thumb) {
+      grid-row: span 2;
+      height: 100%;
+      aspect-ratio: auto;
+      border-bottom: 0;
+      border-right: 1px solid var(--line);
+    }
+
+    .meta {
+      margin-top: var(--space-3);
+      padding-inline: 0 var(--space-3);
+    }
+
+    .title {
+      padding: 0 var(--space-3) var(--space-3) 0;
+    }
+  }
+</style>

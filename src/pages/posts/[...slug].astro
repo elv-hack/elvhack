@@ -5,13 +5,13 @@ import Callout from '@/components/mdx/Callout.astro';
 import Experiment from '@/components/mdx/Experiment.astro';
 import SignalScope from '@/components/mdx/SignalScope.astro';
 import PostLayout from '@/layouts/PostLayout.astro';
-import { getPosts, type Post } from '@/lib/posts';
+import { getPosts, relatedPosts, type Post } from '@/lib/posts';
 
 export async function getStaticPaths() {
   const posts = await getPosts();
   return posts.map((post, i) => ({
     params: { slug: post.id },
-    props: { post, prev: posts[i + 1], next: posts[i - 1] },
+    props: { post, prev: posts[i + 1], next: posts[i - 1], related: relatedPosts(post, posts) },
   }));
 }
 
@@ -19,12 +19,13 @@ interface Props {
   post: Post;
   prev?: Post;
   next?: Post;
+  related: Post[];
 }
 
-const { post, prev, next } = Astro.props;
+const { post, prev, next, related } = Astro.props;
 const { Content, headings } = await render(post);
 ---
 
-<PostLayout post={post} headings={headings} prev={prev} next={next}>
+<PostLayout post={post} headings={headings} prev={prev} next={next} related={related}>
   <Content components={{ Callout, Experiment, SignalScope }} />
 </PostLayout>

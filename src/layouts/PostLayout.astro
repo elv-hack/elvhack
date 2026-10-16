@@ -5,6 +5,7 @@ import '@/styles/prose.css';
 import AmbientField from '@/components/AmbientField.astro';
 import Cover from '@/components/Cover.astro';
 import Giscus from '@/components/Giscus.astro';
+import RelatedPosts from '@/components/RelatedPosts.astro';
 import Toc from '@/components/Toc.astro';
 import { formatDate, postCover, postHref, readingMinutes, tagHref, type Post } from '@/lib/posts';
 import BaseLayout from './BaseLayout.astro';
@@ -14,9 +15,10 @@ export interface Props {
   headings: MarkdownHeading[];
   prev?: Post;
   next?: Post;
+  related?: Post[];
 }
 
-const { post, headings, prev, next } = Astro.props;
+const { post, headings, prev, next, related = [] } = Astro.props;
 const { title, description, pubDate, updatedDate, tags } = post.data;
 const minutes = readingMinutes(post.body);
 const { code, style } = postCover(post);
@@ -108,6 +110,7 @@ const { code, style } = postCover(post);
           </nav>
         )
       }
+      <RelatedPosts posts={related} />
       <Giscus />
     </footer>
   </article>

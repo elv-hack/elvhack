@@ -132,6 +132,7 @@ const isActive = (href: string) => path === href || path.startsWith(href);
   nav a {
     position: relative;
     display: inline-block;
+    white-space: nowrap;
     padding-block: 0.4rem;
     font-size: 0.95rem;
     text-decoration: none;
@@ -244,6 +245,31 @@ const isActive = (href: string) => path === href || path.startsWith(href);
 
     .rss {
       display: none !important;
+    }
+  }
+
+  /* 最窄的手机：收紧间距、略缩字号，保证四个导航词横排 */
+  @media (max-width: 420px) {
+    .bar {
+      gap: var(--space-2);
+    }
+
+    nav ul {
+      gap: 0.6rem;
+    }
+
+    nav a {
+      font-size: 0.9rem;
+    }
+
+    .caret {
+      display: none;
+    }
+  }
+
+  @media (max-width: 350px) {
+    .brand .word {
+      display: none;
     }
   }
 </style>

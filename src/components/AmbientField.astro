@@ -1,19 +1,18 @@
 ---
 /**
- * 文章页背景“星云漂流”：思路借鉴 PixiJS 官网的 Nebulon（星云 + 穿梭星光），代码与配色为本站原创。
- * - 星云：低分辨率 WebGL 渲染的域扭曲 fbm，正文栏附近自动压暗，保证阅读对比度
- * - 星光：Canvas 2D 透视星场，滚动即航行——往下读时星光迎面而来，停下时缓慢漂浮，往回滚则倒退
- * 可在 ⌘K 面板里关闭；减少动态效果时只渲染一帧。
+ * 文章页背景。默认是首页挪过来的粒子流场（阅读模式），也可以在 ⌘K 面板里换成“星云漂流”或关闭。
+ * 渲染器在 src/scripts/backdrops/；这里只负责选模式、循环、尺寸、主题和正文栏遮罩。
+ * 桌面端持续缓慢流动；触屏设备只在滚动时动，省电。减少动态效果时只渲染一帧。
  */
 ---
 
-<ambient-field aria-hidden="true">
-  <canvas class="nebula"></canvas>
-  <canvas class="stars"></canvas>
-</ambient-field>
+<ambient-field aria-hidden="true"></ambient-field>
 
 <style>
   ambient-field {
+    --c0: 30%;
+    --c1: 70%;
+    --calm: 0.3;
     position: fixed;
     inset: 0;
     z-index: -1;
@@ -27,144 +26,57 @@
     opacity: 1;
   }
 
-  ambient-field[data-off] {
-    display: none;
-  }
-
-  canvas {
+  ambient-field :global(canvas) {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
   }
+
+  /* 流场：正文栏那一段压暗，两侧页边保持清楚 */
+  ambient-field :global(canvas.flow) {
+    mask-image: linear-gradient(
+      to right,
+      #000 calc(var(--c0) - 8%),
+      rgb(0 0 0 / var(--calm)) var(--c0),
+      rgb(0 0 0 / var(--calm)) var(--c1),
+      #000 calc(var(--c1) + 8%)
+    );
+  }
 </style>
 
 <script>
+  import { FlowBackdrop } from '@/scripts/backdrops/flow';
+  import { NebulaBackdrop } from '@/scripts/backdrops/nebula';
+  import { backdropModes, type Backdrop, type BackdropMode } from '@/scripts/backdrops/types';
   import { Loop } from '@/scripts/loop';
-  import { prefersReducedMotion, themeColors } from '@/scripts/theme';
+  import { hasFinePointer, prefersReducedMotion } from '@/scripts/theme';
 
-  const VERT = `attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }`;
-
-  const NEBULA = `
-    precision mediump float;
-    uniform vec2 uRes;
-    uniform float uTime;
-    uniform float uScroll;
-    uniform float uStrength;
-    uniform float uCenter;
-    uniform vec3 uBg;
-    uniform vec3 uC1;
-    uniform vec3 uC2;
-
-    float hash(vec2 p) {
-      p = fract(p * vec2(123.34, 456.21));
-      p += dot(p, p + 45.32);
-      return fract(p.x * p.y);
-    }
-
-    float noise(vec2 p) {
-      vec2 i = floor(p);
-      vec2 f = fract(p);
-      vec2 u = f * f * (3.0 - 2.0 * f);
-      return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
-    }
-
-    float fbm(vec2 p) {
-      float v = 0.0;
-      float a = 0.5;
-      for (int i = 0; i < 5; i++) {
-        v += a * noise(p);
-        p = p * 2.02 + vec2(3.1, 1.7);
-        a *= 0.5;
-      }
-      return v;
-    }
-
-    void main() {
-      vec2 uv = gl_FragCoord.xy / uRes;
-      vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
-      // 星云随阅读进度缓慢上移，形成视差
-      p.y -= uScroll * 0.35;
-      float t = uTime * 0.02;
-
-      vec2 q = vec2(fbm(p * 1.1 + vec2(t, 0.0)), fbm(p * 1.1 + vec2(4.1, 2.3) - t));
-      float n = fbm(p * 1.5 + 1.8 * q + vec2(0.0, t * 0.6));
-      float clouds = smoothstep(0.38, 0.92, n);
-      float detail = fbm(p * 3.6 + q * 2.4 - t);
-
-      vec3 color = mix(uC2, uC1, smoothstep(0.42, 0.78, detail));
-      // 正文栏附近压暗
-      float edge = mix(uCenter, 1.0, smoothstep(0.1, 0.46, abs(uv.x - 0.5)));
-      float alpha = clouds * uStrength * edge * (0.55 + 0.45 * detail);
-      gl_FragColor = vec4(mix(uBg, color, alpha), 1.0);
-    }
-  `;
-
-  const toRgb = (color: string): [number, number, number] => {
-    const probe = document.createElement('canvas').getContext('2d')!;
-    probe.fillStyle = color;
-    const normalized = probe.fillStyle as string;
-    if (normalized.startsWith('#')) {
-      const n = parseInt(normalized.slice(1), 16);
-      return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
-    }
-    const [r, g, b] = normalized.match(/[\d.]+/g)!.map(Number);
-    return [r / 255, g / 255, b / 255];
+  /** 读取访客选择的背景模式，默认流场 */
+  const savedMode = (): BackdropMode => {
+    try {
+      const value = localStorage.getItem('ambient');
+      if (value === 'on') return 'flow';
+      if (backdropModes.includes(value as BackdropMode)) return value as BackdropMode;
+    } catch {}
+    return 'flow';
   };
 
-  interface Star {
-    x: number;
-    y: number;
-    z: number;
-    age: number;
-    accent: boolean;
-    glint: boolean;
-  }
-
-  const NEBULA_SCALE = 1 / 3;
-  /** 拖尾覆盖的帧数 */
-  const TRAIL = 7;
-
   class AmbientField extends HTMLElement {
+    #backdrop: Backdrop | null = null;
     #loop!: Loop;
     #resize?: ResizeObserver;
-    #reduce = false;
-    #gl: WebGLRenderingContext | null = null;
-    #u: Record<string, WebGLUniformLocation | null> = {};
-    #nebula!: HTMLCanvasElement;
-    #starsCanvas!: HTMLCanvasElement;
-    #ctx!: CanvasRenderingContext2D;
-    #stars: Star[] = [];
-    #w = 1;
-    #h = 1;
-    #dpr = 1;
-    #start = performance.now();
-    #scroll = { last: 0, vel: 0 };
-    #pointer = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 };
-    #colors = { fg: '#fff', accent: '#c6ff3d' };
-    #frame = 0;
+    #reduce = prefersReducedMotion();
+    #idle = 0;
 
     connectedCallback() {
-      if (this.#disabled()) {
-        this.toggleAttribute('data-off', true);
-      }
-      this.#reduce = prefersReducedMotion();
-      this.#nebula = this.querySelector('.nebula')!;
-      this.#starsCanvas = this.querySelector('.stars')!;
-      this.#ctx = this.#starsCanvas.getContext('2d')!;
-      this.#setupGl();
-      this.#colorsChanged();
-      this.#scroll.last = scrollY;
-
-      this.#loop = new Loop(this, (now) => this.#draw(now));
-      this.#resize = new ResizeObserver(() => this.#onResize());
+      this.#loop = new Loop(this, (now) => this.#backdrop?.draw(now));
+      this.#resize = new ResizeObserver(() => this.#layout());
       this.#resize.observe(this);
-
-      addEventListener('pointermove', this.#onPointer, { passive: true });
-      document.addEventListener('themechange', this.#colorsChanged);
-      document.addEventListener('ambientchange', this.#onToggle);
-
-      this.#loop.paused = this.#reduce || this.hasAttribute('data-off');
+      document.addEventListener('themechange', this.#onTheme);
+      document.addEventListener('ambientchange', this.#mount);
+      addEventListener('scroll', this.#onScroll, { passive: true });
+      this.#mount();
       this.#loop.start();
       requestAnimationFrame(() => this.toggleAttribute('data-ready', true));
     }
@@ -172,202 +84,56 @@
     disconnectedCallback() {
       this.#loop.stop();
       this.#resize?.disconnect();
-      removeEventListener('pointermove', this.#onPointer);
-      document.removeEventListener('themechange', this.#colorsChanged);
-      document.removeEventListener('ambientchange', this.#onToggle);
+      clearTimeout(this.#idle);
+      document.removeEventListener('themechange', this.#onTheme);
+      document.removeEventListener('ambientchange', this.#mount);
+      removeEventListener('scroll', this.#onScroll);
+      this.#backdrop?.destroy();
     }
 
-    #disabled() {
-      try {
-        return localStorage.getItem('ambient') === 'off';
-      } catch {
-        return false;
+    #mount = () => {
+      this.#backdrop?.destroy();
+      this.#backdrop = null;
+      const mode = savedMode();
+      this.dataset.mode = mode;
+      if (mode !== 'off') {
+        const options = { continuous: hasFinePointer() && !this.#reduce };
+        this.#backdrop = mode === 'nebula' ? new NebulaBackdrop(this, options) : new FlowBackdrop(this, options);
       }
-    }
-
-    #onToggle = () => {
-      const off = this.#disabled();
-      this.toggleAttribute('data-off', off);
-      this.#loop.paused = this.#reduce || off;
-      if (!off) this.#onResize();
+      this.#layout();
+      this.#loop.paused = !this.#backdrop?.continuous;
     };
 
-    #setupGl() {
-      const gl = this.#nebula.getContext('webgl', { antialias: false, alpha: false });
-      if (!gl) return;
-      const compile = (type: number, source: string) => {
-        const shader = gl.createShader(type)!;
-        gl.shaderSource(shader, source);
-        gl.compileShader(shader);
-        return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null;
-      };
-      const vs = compile(gl.VERTEX_SHADER, VERT);
-      const fs = compile(gl.FRAGMENT_SHADER, NEBULA);
-      if (!vs || !fs) return;
-      const program = gl.createProgram()!;
-      gl.attachShader(program, vs);
-      gl.attachShader(program, fs);
-      gl.bindAttribLocation(program, 0, 'p');
-      gl.linkProgram(program);
-      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return;
-      gl.useProgram(program);
-      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-      gl.enableVertexAttribArray(0);
-      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-      for (const name of ['uRes', 'uTime', 'uScroll', 'uStrength', 'uCenter', 'uBg', 'uC1', 'uC2']) {
-        this.#u[name] = gl.getUniformLocation(program, name);
-      }
-      this.#gl = gl;
-    }
-
-    #colorsChanged = () => {
-      const theme = themeColors();
-      const css = getComputedStyle(document.documentElement);
-      const accent2 = css.getPropertyValue('--accent-2').trim() || '#1fb5a5';
-      const dark = document.documentElement.dataset.theme !== 'light';
-      this.#colors = { fg: theme.fg, accent: theme.accent };
-      const gl = this.#gl;
-      if (gl) {
-        gl.uniform3fv(this.#u.uBg, toRgb(theme.bg));
-        gl.uniform3fv(this.#u.uC1, toRgb(theme.accent));
-        gl.uniform3fv(this.#u.uC2, toRgb(accent2));
-        gl.uniform1f(this.#u.uStrength, dark ? 0.4 : 0.24);
-      }
-      if (this.#loop?.paused) this.#draw(performance.now());
-    };
-
-    #onResize() {
+    #layout() {
       const rect = this.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
-      this.#dpr = Math.min(devicePixelRatio || 1, 1.5);
-      this.#w = Math.round(rect.width * this.#dpr);
-      this.#h = Math.round(rect.height * this.#dpr);
-      this.#starsCanvas.width = this.#w;
-      this.#starsCanvas.height = this.#h;
-
-      const gl = this.#gl;
-      if (gl) {
-        this.#nebula.width = Math.max(1, Math.round(rect.width * NEBULA_SCALE));
-        this.#nebula.height = Math.max(1, Math.round(rect.height * NEBULA_SCALE));
-        gl.viewport(0, 0, this.#nebula.width, this.#nebula.height);
-        gl.uniform2f(this.#u.uRes, this.#nebula.width, this.#nebula.height);
-        // 窄屏时正文占满屏幕，整体压暗更多
-        gl.uniform1f(this.#u.uCenter, rect.width < 900 ? 0.32 : 0.22);
+      // 正文栏在视口中的横向范围，写给流场的遮罩
+      const body = document.querySelector('post-body')?.getBoundingClientRect();
+      if (body && body.width < rect.width * 0.86) {
+        this.style.setProperty('--c0', `${((body.left / rect.width) * 100).toFixed(1)}%`);
+        this.style.setProperty('--c1', `${((body.right / rect.width) * 100).toFixed(1)}%`);
+        this.style.setProperty('--calm', '0.3');
+      } else {
+        // 窄屏正文铺满，整体压暗
+        this.style.setProperty('--c0', '-10%');
+        this.style.setProperty('--c1', '110%');
+        this.style.setProperty('--calm', '0.45');
       }
-
-      const count = Math.round(Math.min(360, Math.max(110, (rect.width * rect.height) / 5200)));
-      this.#stars = Array.from({ length: count }, (_, i) => this.#spawn(Math.random(), i));
-      this.#draw(performance.now());
+      this.#backdrop?.resize(rect.width, rect.height);
     }
 
-    #spawn(z: number, i = Math.floor(Math.random() * 1000)): Star {
-      return {
-        x: (Math.random() - 0.5) * 2.4,
-        y: (Math.random() - 0.5) * 2.4,
-        z: 0.05 + z * 0.95,
-        age: 0,
-        accent: i % 11 === 0,
-        glint: i % 17 === 0,
-      };
-    }
-
-    #onPointer = (event: PointerEvent) => {
-      this.#pointer.tx = event.clientX / innerWidth;
-      this.#pointer.ty = event.clientY / innerHeight;
+    #onTheme = () => {
+      this.#backdrop?.colors();
+      if (this.#loop.paused) this.#backdrop?.draw(performance.now());
     };
 
-    #draw(now: number) {
-      if (this.hasAttribute('data-off')) return;
-      this.#frame += 1;
-
-      // 滚动速度（像素/帧），平滑后驱动星光的“航速”
-      const delta = scrollY - this.#scroll.last;
-      this.#scroll.last = scrollY;
-      this.#scroll.vel += (Math.max(-90, Math.min(90, delta)) - this.#scroll.vel) * 0.12;
-      const progress = scrollY / Math.max(1, document.documentElement.scrollHeight - innerHeight);
-
-      const gl = this.#gl;
-      if (gl && (this.#reduce || this.#frame % 2 === 0)) {
-        gl.uniform1f(this.#u.uTime, (now - this.#start) / 1000);
-        gl.uniform1f(this.#u.uScroll, progress);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
-      }
-
-      const ctx = this.#ctx;
-      const w = this.#w;
-      const h = this.#h;
-      const d = this.#dpr;
-      const p = this.#pointer;
-      p.x += (p.tx - p.x) * 0.03;
-      p.y += (p.ty - p.y) * 0.03;
-      const cx = w / 2 + (p.x - 0.5) * w * 0.06;
-      const cy = h / 2 + (p.y - 0.5) * h * 0.06;
-      const fov = Math.min(w, h) * 0.55;
-      const dz = this.#reduce ? 0 : 0.0007 + this.#scroll.vel * 0.0003;
-
-      ctx.clearRect(0, 0, w, h);
-      ctx.lineCap = 'round';
-
-      for (let i = 0; i < this.#stars.length; i++) {
-        let s = this.#stars[i];
-        s.z -= dz;
-        s.age += 1;
-        if (s.z <= 0.03) s = this.#stars[i] = this.#spawn(1, i);
-        else if (s.z > 1) s = this.#stars[i] = this.#spawn(0, i);
-
-        const sx = cx + (s.x / s.z) * fov;
-        const sy = cy + (s.y / s.z) * fov;
-        if (sx < -50 || sx > w + 50 || sy < -50 || sy > h + 50) {
-          if (dz >= 0) this.#stars[i] = this.#spawn(1, i);
-          continue;
-        }
-
-        const near = 1 - s.z;
-        const fadeIn = Math.min(1, s.age / 40) * Math.min(1, (1 - s.z) * 4);
-        // 正文栏范围内的星光变淡，避免干扰阅读
-        const column = Math.abs(sx / w - 0.5);
-        const calm = 0.3 + 0.7 * Math.min(1, Math.max(0, (column - 0.12) / 0.28));
-        const alpha = (0.15 + near * 0.75) * fadeIn * calm;
-        const size = (0.5 + near * near * 2.2) * d;
-        const color = s.accent ? this.#colors.accent : this.#colors.fg;
-
-        ctx.globalAlpha = alpha;
-        ctx.strokeStyle = color;
-        ctx.fillStyle = color;
-        // 拖尾：按当前航速往回推几帧的深度，得到拖尾起点；静止时退化成一个点
-        const tailZ = Math.min(1.6, Math.max(0.03, s.z + dz * TRAIL));
-        const tx = cx + (s.x / tailZ) * fov;
-        const ty = cy + (s.y / tailZ) * fov;
-        if (Math.hypot(sx - tx, sy - ty) > size * 1.5) {
-          ctx.globalAlpha = alpha * 0.75;
-          ctx.lineWidth = size;
-          ctx.beginPath();
-          ctx.moveTo(tx, ty);
-          ctx.lineTo(sx, sy);
-          ctx.stroke();
-        } else {
-          ctx.beginPath();
-          ctx.arc(sx, sy, size * 0.6, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        // 少数亮星带十字星芒，缓慢闪烁
-        if (s.glint && near > 0.35) {
-          const twinkle = 0.55 + 0.45 * Math.sin(now / 600 + i);
-          const r = size * (3 + near * 5) * twinkle;
-          ctx.globalAlpha = alpha * 0.55 * twinkle;
-          ctx.lineWidth = Math.max(0.6, size * 0.35);
-          ctx.beginPath();
-          ctx.moveTo(sx - r, sy);
-          ctx.lineTo(sx + r, sy);
-          ctx.moveTo(sx, sy - r);
-          ctx.lineTo(sx, sy + r);
-          ctx.stroke();
-        }
-      }
-      ctx.globalAlpha = 1;
-    }
+    /** 非持续模式：滚动时动起来，停下 1.5 秒后静止 */
+    #onScroll = () => {
+      if (!this.#backdrop || this.#backdrop.continuous || this.#reduce) return;
+      this.#loop.paused = false;
+      clearTimeout(this.#idle);
+      this.#idle = window.setTimeout(() => (this.#loop.paused = true), 1500);
+    };
   }
 
   if (!customElements.get('ambient-field')) customElements.define('ambient-field', AmbientField);

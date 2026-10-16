@@ -1,7 +1,8 @@
 ---
 import PostList from '@/components/PostList.astro';
+import WritingHeatmap from '@/components/WritingHeatmap.astro';
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getPosts, postYear, type Post } from '@/lib/posts';
+import { formatDate, getPosts, getTags, postYear, readingMinutes, wordCount, type Post } from '@/lib/posts';
 
 const posts = await getPosts();
 
@@ -17,6 +18,17 @@ const groups = [...years].map(([year, items]) => {
   offset += items.length;
   return group;
 });
+
+const words = posts.reduce((sum, post) => sum + wordCount(post.body), 0);
+const minutes = posts.reduce((sum, post) => sum + readingMinutes(post.body), 0);
+const latest = posts[0]?.data.updatedDate ?? posts[0]?.data.pubDate;
+const stats = [
+  { label: 'posts / 篇', value: String(posts.length) },
+  { label: 'words / 字', value: words >= 10000 ? `${(words / 10000).toFixed(1)}万` : words.toLocaleString('zh-CN') },
+  { label: 'tags / 标签', value: String(getTags(posts).length) },
+  { label: 'reading / 分钟', value: String(minutes) },
+  { label: 'latest / 最近', value: latest ? formatDate(latest).slice(5) : '—' },
+];
 ---
 
 <BaseLayout title="文章" description="全部文章，按年份归档。">
@@ -25,6 +37,20 @@ const groups = [...years].map(([year, items]) => {
     <h1>文章</h1>
     <p>全部文章，按年份归档。</p>
   </header>
+
+  <section class="container overview" aria-label="写作概览">
+    <dl class="stats">
+      {
+        stats.map((s) => (
+          <div>
+            <dt class="mono">{s.label}</dt>
+            <dd>{s.value}</dd>
+          </div>
+        ))
+      }
+    </dl>
+    <WritingHeatmap posts={posts} />
+  </section>
 
   <div class="container">
     {
@@ -41,6 +67,43 @@ const groups = [...years].map(([year, items]) => {
 </BaseLayout>
 
 <style>
+  .overview {
+    display: grid;
+    gap: var(--space-6);
+    margin-bottom: var(--space-8);
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border-block: 1px solid var(--line);
+  }
+
+  .stats div {
+    padding: var(--space-4) var(--space-4) var(--space-4) 0;
+  }
+
+  .stats div + div {
+    padding-left: var(--space-4);
+    border-left: 1px solid var(--line);
+  }
+
+  dt {
+    font-size: var(--step--2);
+    color: var(--fg-faint);
+    text-transform: uppercase;
+  }
+
+  dd {
+    margin-top: var(--space-1);
+    font-family: var(--font-display);
+    font-size: var(--step-3);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+
   .year {
     display: grid;
     grid-template-columns: 12rem 1fr;
@@ -72,6 +135,21 @@ const groups = [...years].map(([year, items]) => {
 
     .year-num {
       position: static;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .stats {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .stats div:nth-child(4) {
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    .stats div:nth-child(n + 4) {
+      border-top: 1px solid var(--line);
     }
   }
 </style>

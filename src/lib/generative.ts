@@ -239,3 +239,33 @@ export function coverSvg(id: string, style: CoverStyle): string {
     `<g id="art">${generators[style](rand)}</g></svg>`
   );
 }
+
+/**
+ * 生成式头像：9×9 左右对称的像素图，少数格子用强调色。
+ * 墨色用 currentColor，强调色用 var(--accent)，直接内联进页面。
+ */
+export function avatarSvg(seed: string, size = 9): string {
+  const rand = random(hash(seed));
+  const half = Math.ceil(size / 2);
+  const cell = 10;
+  let ink = '';
+  let accent = '';
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < half; x++) {
+      // 越靠中间越容易被点亮，轮廓更像一个“脸”
+      const bias = 0.62 - Math.abs(x - half + 1) * 0.05 - Math.abs(y - size / 2) * 0.03;
+      if (rand() > bias) continue;
+      const lit = rand() < 0.12;
+      for (const cx of x === half - 1 && size % 2 ? [x] : [x, size - 1 - x]) {
+        const rect = `M${cx * cell} ${y * cell}h${cell}v${cell}h-${cell}z`;
+        if (lit) accent += rect;
+        else ink += rect;
+      }
+    }
+  }
+  const s = size * cell;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -10 ${s + 20} ${s + 20}" role="img" aria-label="${seed} 的生成头像">` +
+    `<path d="${ink}" fill="currentColor"/><path d="${accent}" style="fill:var(--accent,#c6ff3d)"/></svg>`
+  );
+}
