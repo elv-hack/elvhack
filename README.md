@@ -63,6 +63,14 @@ cover: ridge              # 可选：flow / moire / ridge / halftone，不填由
 - 输出目录：`dist`
 - Node 版本：见 `.node-version`
 
+## www 跳转
+
+`www.elvhack.com` 由一个独立的小 Worker 301 跳转到 `https://elvhack.com`，源码在 `infra/www-redirect/`。它绑定为自定义域名，DNS 记录和证书由 Cloudflare 自动管理。修改后在该目录运行：
+
+```bash
+npx wrangler@4.146.0 deploy
+```
+
 ## 开启评论（Giscus）
 
 1. 在 GitHub 仓库 `vx-zjr/elvhack` 的 Settings → Features 打开 Discussions。
