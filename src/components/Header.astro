@@ -27,6 +27,14 @@ const isActive = (href: string) => path === href || path.startsWith(href);
       </ul>
     </nav>
     <div class="tools">
+      <button type="button" class="search" aria-label="搜索与命令（⌘K）" data-open-palette>
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
+          <path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+        </svg>
+        <span class="label">搜索</span>
+        <kbd class="mono" aria-hidden="true">⌘K</kbd>
+      </button>
       <a href="/rss.xml" class="icon-btn rss" aria-label="RSS 订阅">
         <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
           <path d="M5 4.5a14.5 14.5 0 0 1 14.5 14.5M5 10.5a8.5 8.5 0 0 1 8.5 8.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
@@ -181,9 +189,57 @@ const isActive = (href: string) => path === href || path.startsWith(href);
     background: var(--line);
   }
 
+  .search {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: 34px;
+    margin-right: var(--space-2);
+    padding: 0 0.5rem 0 0.7rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--fg-muted);
+    font-size: var(--step--1);
+    transition:
+      border-color 0.15s,
+      color 0.15s;
+  }
+
+  .search:hover {
+    border-color: var(--accent-ink);
+    color: var(--fg);
+  }
+
+  .search kbd {
+    padding: 0.05em 0.45em;
+    border-radius: 999px;
+    background: var(--line);
+    font-size: var(--step--2);
+  }
+
+  @media (max-width: 900px) {
+    .search {
+      width: 36px;
+      padding: 0;
+      justify-content: center;
+      border-color: transparent;
+      border-radius: 50%;
+      margin-right: 0;
+    }
+
+    .search :is(.label, kbd) {
+      display: none;
+    }
+  }
+
   @media (max-width: 480px) {
     .bar {
-      gap: var(--space-4);
+      gap: var(--space-3);
+    }
+
+    nav ul {
+      gap: 0.75rem;
     }
 
     .rss {
@@ -199,6 +255,12 @@ const isActive = (href: string) => path === href || path.startsWith(href);
     connectedCallback() {
       addEventListener('scroll', this.#onScroll, { passive: true });
       this.#update();
+      this.querySelector('[data-open-palette]')?.addEventListener('click', () => document.dispatchEvent(new Event('palette:open')));
+      // 非 Mac 显示 Ctrl K
+      if (!/Mac|iPhone|iPad/.test(navigator.platform)) {
+        const kbd = this.querySelector('.search kbd');
+        if (kbd) kbd.textContent = 'Ctrl K';
+      }
     }
 
     disconnectedCallback() {

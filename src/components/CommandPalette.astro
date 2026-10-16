@@ -1,0 +1,464 @@
+---
+/**
+ * ⌘K / Ctrl+K / “/” 打开的命令面板：页面跳转、站内操作，以及基于 Pagefind 的全文搜索。
+ * 搜索索引在构建时由 `pagefind --site dist` 生成，首次打开面板时才按需加载。
+ */
+import { labCode, labs } from '@/lab/registry';
+import { site } from '@/site.config';
+
+const commands = [
+  ...[{ href: '/', label: '首页' }, ...site.nav].map((item) => ({ group: '跳转', label: item.label, hint: item.href, href: item.href })),
+  ...labs.map((entry) => ({ group: '实验', label: entry.title, hint: `${labCode(entry)} · ${entry.en}`, href: `/lab/${entry.slug}/` })),
+  { group: '操作', label: '切换明暗主题', hint: 'theme', action: 'theme' },
+  { group: '操作', label: '复制当前页链接', hint: 'copy url', action: 'copy' },
+  { group: '操作', label: '订阅 RSS', hint: '/rss.xml', href: '/rss.xml', external: true },
+  { group: '操作', label: 'GitHub', hint: 'github.com', href: site.social.github, external: true },
+];
+---
+
+<command-palette>
+  <dialog class="palette" aria-label="搜索与命令">
+    <div class="box">
+      <label class="field">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"></circle>
+          <path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+        </svg>
+        <span class="sr-only">搜索文章、实验或命令</span>
+        <input
+          type="search"
+          placeholder="搜索文章、实验，或输入命令…"
+          autocomplete="off"
+          spellcheck="false"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="palette-list"
+          aria-autocomplete="list"
+        />
+        <kbd class="mono">esc</kbd>
+      </label>
+      <div class="list" id="palette-list" role="listbox" aria-label="结果"></div>
+      <p class="foot mono" aria-hidden="true">
+        <span><kbd>↑</kbd><kbd>↓</kbd> 选择</span>
+        <span><kbd>↵</kbd> 打开</span>
+        <span class="status" data-status></span>
+      </p>
+    </div>
+  </dialog>
+  <script type="application/json" data-commands set:html={JSON.stringify(commands)} />
+</command-palette>
+
+<style>
+  command-palette {
+    display: contents;
+  }
+
+  .palette[open] {
+    display: block;
+  }
+
+  .palette {
+    width: min(640px, calc(100vw - 32px));
+    max-height: min(560px, calc(100svh - 120px));
+    margin: 12vh auto auto;
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: color-mix(in oklab, var(--bg-elev) 88%, transparent);
+    color: var(--fg);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--accent) 6%, transparent),
+      0 40px 120px -30px rgb(0 0 0 / 0.6);
+    backdrop-filter: blur(20px) saturate(1.3);
+    -webkit-backdrop-filter: blur(20px) saturate(1.3);
+    overflow: hidden;
+  }
+
+  .palette::backdrop {
+    background: color-mix(in oklab, var(--bg) 55%, transparent);
+    backdrop-filter: blur(3px);
+  }
+
+  .palette[open] .box {
+    animation: rise 0.22s var(--ease-out);
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.98);
+    }
+  }
+
+  .box {
+    display: flex;
+    flex-direction: column;
+    max-height: inherit;
+  }
+
+  .field {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--line);
+    color: var(--fg-muted);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: none;
+    font-size: var(--step-1);
+    color: var(--fg);
+    outline: none;
+  }
+
+  input::placeholder {
+    color: var(--fg-faint);
+  }
+
+  input::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  kbd {
+    padding: 0.1em 0.45em;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--fg-muted);
+  }
+
+  .list {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-2);
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+
+  .list :global(.group) {
+    padding: var(--space-3) var(--space-3) var(--space-1);
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--fg-faint);
+    text-transform: uppercase;
+  }
+
+  .list :global(.item) {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.2rem var(--space-4);
+    align-items: baseline;
+    padding: 0.65rem var(--space-3);
+    border-radius: 6px;
+    color: var(--fg);
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .list :global(.item[aria-selected='true']) {
+    background: color-mix(in oklab, var(--accent) 13%, transparent);
+    box-shadow: inset 2px 0 var(--accent-ink);
+  }
+
+  .list :global(.item .label) {
+    font-weight: 500;
+  }
+
+  .list :global(.item .hint) {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--fg-muted);
+  }
+
+  .list :global(.item .excerpt) {
+    grid-column: 1 / -1;
+    font-size: var(--step--1);
+    line-height: 1.6;
+    color: var(--fg-muted);
+  }
+
+  .list :global(mark) {
+    background: none;
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+
+  .list :global(.empty) {
+    padding: var(--space-6) var(--space-3);
+    text-align: center;
+    color: var(--fg-muted);
+    font-size: var(--step--1);
+  }
+
+  .foot {
+    display: flex;
+    gap: var(--space-5);
+    padding: var(--space-3) var(--space-5);
+    border-top: 1px solid var(--line);
+    font-size: var(--step--2);
+    color: var(--fg-faint);
+  }
+
+  .foot kbd {
+    margin-right: 0.3em;
+  }
+
+  .status {
+    margin-left: auto;
+  }
+
+  @media (max-width: 560px) {
+    .palette {
+      margin-top: 72px;
+    }
+
+    .foot span:not(.status) {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  import { navigate } from 'astro:transitions/client';
+
+  interface Command {
+    group: string;
+    label: string;
+    hint: string;
+    href?: string;
+    action?: 'theme' | 'copy';
+    external?: boolean;
+  }
+
+  interface Result {
+    group: string;
+    label: string;
+    hint: string;
+    excerpt?: string;
+    run: () => void;
+  }
+
+  interface PagefindResult {
+    data: () => Promise<{ url: string; excerpt: string; meta: { title?: string; type?: string } }>;
+  }
+
+  interface Pagefind {
+    init?: () => Promise<void>;
+    debouncedSearch: (query: string, options?: object, ms?: number) => Promise<{ results: PagefindResult[] } | null>;
+  }
+
+  let pagefind: Promise<Pagefind | null> | undefined;
+  const loadPagefind = () => {
+    // 路径放进变量，避免打包器尝试解析构建后才生成的文件
+    const url = '/pagefind/pagefind.js';
+    pagefind ??= import(/* @vite-ignore */ url)
+      .then(async (mod: Pagefind) => {
+        await mod.init?.();
+        return mod;
+      })
+      .catch(() => null);
+    return pagefind;
+  };
+
+  const isTyping = (el: EventTarget | null) =>
+    el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
+
+  class CommandPalette extends HTMLElement {
+    #dialog!: HTMLDialogElement;
+    #input!: HTMLInputElement;
+    #list!: HTMLElement;
+    #status!: HTMLElement;
+    #commands: Command[] = [];
+    #results: Result[] = [];
+    #active = 0;
+    #query = 0;
+
+    connectedCallback() {
+      this.#dialog = this.querySelector('dialog')!;
+      this.#input = this.querySelector('input')!;
+      this.#list = this.querySelector('.list')!;
+      this.#status = this.querySelector('[data-status]')!;
+      this.#commands = JSON.parse(this.querySelector('[data-commands]')!.textContent ?? '[]');
+
+      document.addEventListener('keydown', this.#onGlobalKey);
+      document.addEventListener('palette:open', this.open);
+      this.#input.addEventListener('input', this.#onInput);
+      this.#input.addEventListener('keydown', this.#onKey);
+      this.#dialog.addEventListener('click', (event) => event.target === this.#dialog && this.close());
+      this.#list.addEventListener('pointermove', (event) => {
+        const item = (event.target as Element).closest<HTMLElement>('.item');
+        if (item) this.#select(Number(item.dataset.index));
+      });
+      this.#list.addEventListener('click', (event) => {
+        const item = (event.target as Element).closest<HTMLElement>('.item');
+        if (!item) return;
+        event.preventDefault();
+        this.#results[Number(item.dataset.index)]?.run();
+      });
+    }
+
+    disconnectedCallback() {
+      document.removeEventListener('keydown', this.#onGlobalKey);
+      document.removeEventListener('palette:open', this.open);
+    }
+
+    open = () => {
+      if (this.#dialog.open) return;
+      this.#dialog.showModal();
+      this.#input.value = '';
+      this.#render(this.#commandResults(''));
+      this.#status.textContent = '';
+      loadPagefind();
+    };
+
+    close() {
+      this.#dialog.close();
+    }
+
+    #onGlobalKey = (event: KeyboardEvent) => {
+      const combo = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
+      const slash = event.key === '/' && !isTyping(event.target);
+      if (!combo && !slash) return;
+      event.preventDefault();
+      if (this.#dialog.open) this.close();
+      else this.open();
+    };
+
+    #onKey = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const n = this.#results.length;
+        if (n) this.#select((this.#active + (event.key === 'ArrowDown' ? 1 : -1) + n) % n, true);
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        this.#results[this.#active]?.run();
+      }
+    };
+
+    #onInput = async () => {
+      const q = this.#input.value.trim();
+      const ticket = ++this.#query;
+      const commands = this.#commandResults(q);
+      if (!q) {
+        this.#status.textContent = '';
+        this.#render(commands);
+        return;
+      }
+      this.#render(commands, true);
+      const pf = await loadPagefind();
+      if (ticket !== this.#query) return;
+      if (!pf) {
+        this.#status.textContent = '全文索引在构建后可用';
+        this.#render(commands);
+        return;
+      }
+      this.#status.textContent = '搜索中…';
+      const search = await pf.debouncedSearch(q, {}, 160);
+      if (!search || ticket !== this.#query) return;
+      const pages = await Promise.all(search.results.slice(0, 8).map((r) => r.data()));
+      if (ticket !== this.#query) return;
+      const found: Result[] = pages.map((page) => ({
+        group: '内容',
+        label: page.meta.title ?? page.url,
+        hint: page.meta.type ?? '',
+        excerpt: page.excerpt,
+        run: () => this.#go(page.url),
+      }));
+      this.#status.textContent = `${search.results.length} 条结果`;
+      this.#render([...found, ...commands]);
+    };
+
+    #commandResults(q: string): Result[] {
+      const needle = q.toLowerCase();
+      return this.#commands
+        .filter((c) => !needle || `${c.label} ${c.hint} ${c.group}`.toLowerCase().includes(needle))
+        .map((c) => ({
+          group: c.group,
+          label: c.label,
+          hint: c.hint,
+          run: () => this.#runCommand(c),
+        }));
+    }
+
+    #runCommand(c: Command) {
+      if (c.action === 'theme') {
+        this.close();
+        document.querySelector<HTMLButtonElement>('theme-toggle button')?.click();
+      } else if (c.action === 'copy') {
+        navigator.clipboard?.writeText(location.href).then(() => (this.#status.textContent = '链接已复制'));
+      } else if (c.href && c.external) {
+        this.close();
+        window.open(c.href, '_blank', 'noopener');
+      } else if (c.href) {
+        this.#go(c.href);
+      }
+    }
+
+    #go(url: string) {
+      this.close();
+      navigate(url);
+    }
+
+    #render(results: Result[], pending = false) {
+      this.#results = results;
+      this.#active = 0;
+      const fragment = document.createDocumentFragment();
+      let group = '';
+      results.forEach((result, i) => {
+        if (result.group !== group) {
+          group = result.group;
+          const head = document.createElement('div');
+          head.className = 'group';
+          head.textContent = group;
+          head.setAttribute('aria-hidden', 'true');
+          fragment.append(head);
+        }
+        const item = document.createElement('div');
+        item.className = 'item';
+        item.id = `palette-item-${i}`;
+        item.dataset.index = String(i);
+        item.setAttribute('role', 'option');
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = result.label;
+        const hint = document.createElement('span');
+        hint.className = 'hint';
+        hint.textContent = result.hint;
+        item.append(label, hint);
+        if (result.excerpt) {
+          const excerpt = document.createElement('span');
+          excerpt.className = 'excerpt';
+          // Pagefind 的摘要是转义过的文本，只带 <mark> 高亮
+          excerpt.innerHTML = result.excerpt;
+          item.append(excerpt);
+        }
+        fragment.append(item);
+      });
+      if (!results.length && !pending) {
+        const empty = document.createElement('p');
+        empty.className = 'empty';
+        empty.textContent = '没有找到相关内容。';
+        fragment.append(empty);
+      }
+      this.#list.replaceChildren(fragment);
+      this.#select(0);
+    }
+
+    #select(index: number, scroll = false) {
+      this.#active = index;
+      for (const item of this.#list.querySelectorAll<HTMLElement>('.item')) {
+        const selected = Number(item.dataset.index) === index;
+        item.setAttribute('aria-selected', String(selected));
+        if (selected && scroll) item.scrollIntoView({ block: 'nearest' });
+      }
+      this.#input.setAttribute('aria-activedescendant', this.#results.length ? `palette-item-${index}` : '');
+    }
+  }
+
+  if (!customElements.get('command-palette')) customElements.define('command-palette', CommandPalette);
+</script>

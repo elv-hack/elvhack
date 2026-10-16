@@ -39,7 +39,8 @@ const Lab = components[entry.slug as keyof typeof components];
     <header class="lab-head container">
       <a href="/lab/" class="back mono">← 实验室</a>
       <p class="code mono">{labCode(entry)} · {entry.en}</p>
-      <h1 id="lab-title" transition:name={`lab-title-${entry.slug}`}>{entry.title}</h1>
+      <h1 id="lab-title" transition:name={`lab-title-${entry.slug}`} data-pagefind-meta="title">{entry.title}</h1>
+      <span hidden data-pagefind-meta="type:实验"></span>
     </header>
   </section>
 

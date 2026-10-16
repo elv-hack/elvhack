@@ -44,7 +44,8 @@ const { code, style } = postCover(post);
           </ul>
         )
       }
-      <h1 transition:name={`title-${post.id}`}>{title}</h1>
+      <h1 transition:name={`title-${post.id}`} data-pagefind-meta="title">{title}</h1>
+      <span hidden data-pagefind-meta="type:文章"></span>
       <p class="lede">{description}</p>
       <dl class="meta mono">
         <div>
