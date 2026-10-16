@@ -47,255 +47,82 @@
 </style>
 
 <script>
-  // ---- Perlin 改进噪声（Ken Perlin, 2002）----
-  const perm = new Uint8Array(512);
-  {
-    let seed = 0x9e3779b9;
-    const rand = () => {
-      seed = (seed + 0x6d2b79f5) | 0;
-      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-    const p = Array.from({ length: 256 }, (_, i) => i);
-    for (let i = 255; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      [p[i], p[j]] = [p[j], p[i]];
-    }
-    for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
-  }
-
-  const fade = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
-  const lerp = (a: number, b: number, t: number) => a + t * (b - a);
-  const grad = (hash: number, x: number, y: number, z: number) => {
-    const h = hash & 15;
-    const u = h < 8 ? x : y;
-    const v = h < 4 ? y : h === 12 || h === 14 ? x : z;
-    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
-  };
-
-  function noise(x: number, y: number, z: number) {
-    const X = Math.floor(x) & 255;
-    const Y = Math.floor(y) & 255;
-    const Z = Math.floor(z) & 255;
-    x -= Math.floor(x);
-    y -= Math.floor(y);
-    z -= Math.floor(z);
-    const u = fade(x);
-    const v = fade(y);
-    const w = fade(z);
-    const A = perm[X] + Y;
-    const AA = perm[A] + Z;
-    const AB = perm[A + 1] + Z;
-    const B = perm[X + 1] + Y;
-    const BA = perm[B] + Z;
-    const BB = perm[B + 1] + Z;
-    return lerp(
-      lerp(lerp(grad(perm[AA], x, y, z), grad(perm[BA], x - 1, y, z), u), lerp(grad(perm[AB], x, y - 1, z), grad(perm[BB], x - 1, y - 1, z), u), v),
-      lerp(
-        lerp(grad(perm[AA + 1], x, y, z - 1), grad(perm[BA + 1], x - 1, y, z - 1), u),
-        lerp(grad(perm[AB + 1], x, y - 1, z - 1), grad(perm[BB + 1], x - 1, y - 1, z - 1), u),
-        v,
-      ),
-      w,
-    );
-  }
-
-  // ---- 粒子场 ----
-  const STRIDE = 4; // x, y, age, life
-  const SCALE = 0.0016;
-  const SPEED = 1.15;
+  import { FlowField } from '@/scripts/flow-field';
+  import { Loop } from '@/scripts/loop';
+  import { prefersReducedMotion, themeColors } from '@/scripts/theme';
 
   class FieldCanvas extends HTMLElement {
-    #canvas!: HTMLCanvasElement;
-    #ctx!: CanvasRenderingContext2D;
+    #field!: FlowField;
+    #loop!: Loop;
     #stats!: HTMLElement;
-    #particles = new Float32Array(0);
-    #count = 0;
-    #w = 0;
-    #h = 0;
-    #dpr = 1;
-    #t = 0;
-    #frame = 0;
-    #visible = true;
     #reduce = false;
-    #pointer = { x: 0, y: 0, active: false };
-    #colors = { bg: '#000', ink: '#fff', accent: '#c6ff3d' };
-    #fps = { frames: 0, since: 0, value: 0 };
+    #fps = { frames: 0, since: 0 };
     #resizeObserver?: ResizeObserver;
-    #intersection?: IntersectionObserver;
+    #host: HTMLElement | null = null;
 
     connectedCallback() {
-      this.#canvas = this.querySelector('canvas')!;
-      this.#ctx = this.#canvas.getContext('2d', { alpha: false })!;
+      this.#field = new FlowField(this.querySelector('canvas')!);
       this.#stats = this.querySelector('[data-out="stats"]')!;
-      this.#reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      this.#reduce = prefersReducedMotion();
       this.#readColors();
+
+      this.#loop = new Loop(this, (now) => {
+        this.#field.step();
+        this.#tickFps(now);
+      });
+      this.#loop.paused = this.#reduce;
 
       this.#resizeObserver = new ResizeObserver(() => this.#resize());
       this.#resizeObserver.observe(this);
-      this.#intersection = new IntersectionObserver(([entry]) => {
-        this.#visible = entry.isIntersecting;
-        this.#schedule();
-      });
-      this.#intersection.observe(this);
+      this.#loop.start();
 
-      const host = this.parentElement ?? this;
-      host.addEventListener('pointermove', this.#onPointer);
-      host.addEventListener('pointerleave', this.#onLeave);
-      document.addEventListener('visibilitychange', this.#schedule);
+      this.#host = this.parentElement;
+      this.#host?.addEventListener('pointermove', this.#onPointer);
+      this.#host?.addEventListener('pointerleave', this.#onLeave);
       document.addEventListener('themechange', this.#onTheme);
     }
 
     disconnectedCallback() {
-      cancelAnimationFrame(this.#frame);
+      this.#loop.stop();
       this.#resizeObserver?.disconnect();
-      this.#intersection?.disconnect();
-      const host = this.parentElement ?? this;
-      host.removeEventListener('pointermove', this.#onPointer);
-      host.removeEventListener('pointerleave', this.#onLeave);
-      document.removeEventListener('visibilitychange', this.#schedule);
+      this.#host?.removeEventListener('pointermove', this.#onPointer);
+      this.#host?.removeEventListener('pointerleave', this.#onLeave);
       document.removeEventListener('themechange', this.#onTheme);
     }
 
     #readColors() {
-      const css = getComputedStyle(document.documentElement);
-      this.#colors = {
-        bg: css.getPropertyValue('--bg').trim() || '#0a0b0d',
-        ink: css.getPropertyValue('--fg').trim() || '#ecebe6',
-        accent: css.getPropertyValue('--accent-ink').trim() || '#c6ff3d',
-      };
+      const { bg, fg, accent } = themeColors();
+      this.#field.colors = { bg, ink: fg, accent };
     }
 
     #onTheme = () => {
       this.#readColors();
-      this.#clear();
-      if (this.#reduce) this.#renderStatic();
+      this.#field.clear();
+      if (this.#reduce) this.#field.renderStatic();
     };
 
     #onPointer = (event: PointerEvent) => {
       const rect = this.getBoundingClientRect();
-      this.#pointer.x = (event.clientX - rect.left) * this.#dpr;
-      this.#pointer.y = (event.clientY - rect.top) * this.#dpr;
-      this.#pointer.active = true;
+      this.#field.setPointer(event.clientX - rect.left, event.clientY - rect.top);
     };
 
-    #onLeave = () => {
-      this.#pointer.active = false;
-    };
+    #onLeave = () => this.#field.releasePointer();
 
     #resize() {
       const rect = this.getBoundingClientRect();
-      this.#dpr = Math.min(devicePixelRatio || 1, 2);
-      this.#w = Math.max(1, Math.round(rect.width * this.#dpr));
-      this.#h = Math.max(1, Math.round(rect.height * this.#dpr));
-      this.#canvas.width = this.#w;
-      this.#canvas.height = this.#h;
-
-      const area = rect.width * rect.height;
-      this.#count = Math.round(Math.min(1800, Math.max(350, area / 700)));
-      this.#particles = new Float32Array(this.#count * STRIDE);
-      for (let i = 0; i < this.#count; i++) this.#spawn(i, true);
-      this.#stats.textContent = `${this.#count} particles`;
-
-      this.#clear();
-      if (this.#reduce) this.#renderStatic();
-      else this.#schedule();
-    }
-
-    #spawn(i: number, randomAge = false) {
-      const o = i * STRIDE;
-      const p = this.#particles;
-      p[o] = Math.random() * this.#w;
-      p[o + 1] = Math.random() * this.#h;
-      p[o + 3] = 80 + Math.random() * 220;
-      p[o + 2] = randomAge ? Math.random() * p[o + 3] : 0;
-    }
-
-    #clear() {
-      this.#ctx.globalAlpha = 1;
-      this.#ctx.fillStyle = this.#colors.bg;
-      this.#ctx.fillRect(0, 0, this.#w, this.#h);
-    }
-
-    #schedule = () => {
-      cancelAnimationFrame(this.#frame);
-      if (this.#reduce || !this.#visible || document.hidden) return;
-      this.#frame = requestAnimationFrame(this.#loop);
-    };
-
-    #loop = (now: number) => {
-      this.#step(true);
-      this.#tickFps(now);
-      this.#frame = requestAnimationFrame(this.#loop);
-    };
-
-    #renderStatic() {
-      for (let i = 0; i < 140; i++) this.#step(false);
-    }
-
-    #step(fade: boolean) {
-      const ctx = this.#ctx;
-      const p = this.#particles;
-      const { x: px, y: py, active } = this.#pointer;
-      const radius = 220 * this.#dpr;
-      const speed = SPEED * this.#dpr;
-      const accentEvery = 9;
-
-      if (fade) {
-        ctx.globalAlpha = 0.085;
-        ctx.fillStyle = this.#colors.bg;
-        ctx.fillRect(0, 0, this.#w, this.#h);
-      }
-
-      this.#t += 0.0022;
-      ctx.lineWidth = this.#dpr;
-      ctx.lineCap = 'round';
-
-      for (let pass = 0; pass < 2; pass++) {
-        const isAccent = pass === 1;
-        ctx.beginPath();
-        for (let i = isAccent ? 0 : 1; i < this.#count; i++) {
-          if (isAccent !== (i % accentEvery === 0)) continue;
-          const o = i * STRIDE;
-          const x = p[o];
-          const y = p[o + 1];
-          let angle = noise(x * SCALE / this.#dpr, y * SCALE / this.#dpr, this.#t) * Math.PI * 3;
-
-          if (active) {
-            const dx = x - px;
-            const dy = y - py;
-            const dist = Math.hypot(dx, dy);
-            if (dist < radius) {
-              const pull = 1 - dist / radius;
-              angle = lerp(angle, Math.atan2(dy, dx) + Math.PI / 2, pull * 0.9);
-            }
-          }
-
-          const nx = x + Math.cos(angle) * speed * (isAccent ? 1.6 : 1);
-          const ny = y + Math.sin(angle) * speed * (isAccent ? 1.6 : 1);
-          ctx.moveTo(x, y);
-          ctx.lineTo(nx, ny);
-          p[o] = nx;
-          p[o + 1] = ny;
-          p[o + 2] += 1;
-
-          if (p[o + 2] > p[o + 3] || nx < 0 || nx > this.#w || ny < 0 || ny > this.#h) this.#spawn(i);
-        }
-        ctx.globalAlpha = isAccent ? 0.9 : 0.32;
-        ctx.strokeStyle = isAccent ? this.#colors.accent : this.#colors.ink;
-        ctx.stroke();
-      }
+      this.#field.resize(rect.width, rect.height);
+      this.#stats.textContent = `${this.#field.count} particles`;
+      if (this.#reduce) this.#field.renderStatic();
     }
 
     #tickFps(now: number) {
       const fps = this.#fps;
       fps.frames += 1;
       if (now - fps.since > 500) {
-        fps.value = Math.round((fps.frames * 1000) / (now - fps.since));
+        const value = Math.round((fps.frames * 1000) / (now - fps.since));
         fps.frames = 0;
         fps.since = now;
-        this.#stats.textContent = `${this.#count} particles · ${fps.value} fps`;
+        this.#stats.textContent = `${this.#field.count} particles · ${value} fps`;
       }
     }
   }

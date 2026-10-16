@@ -7,8 +7,11 @@
 export const COVER_W = 800;
 export const COVER_H = 500;
 
-export const coverStyles = ['flow', 'moire', 'ridge', 'halftone'] as const;
+export const coverStyles = ['flow', 'moire', 'ridge', 'halftone', 'lissajous'] as const;
 export type CoverStyle = (typeof coverStyles)[number];
+
+/** 自动分配时只用前四种，新增风格不会改变已有文章的封面 */
+const autoStyles: CoverStyle[] = ['flow', 'moire', 'ridge', 'halftone'];
 
 /** FNV-1a 32 位哈希 */
 export function hash(input: string): number {
@@ -182,7 +185,36 @@ function halftone(rand: () => number): string {
   return `<path d="${ink}" fill="currentColor" fill-opacity=".55"/><path d="${accent}" style="fill:var(--cover-accent,#c6ff3d)"/>`;
 }
 
-const generators: Record<CoverStyle, (rand: () => number) => string> = { flow, moire, ridge, halftone };
+/** 李萨如曲线：几组嵌套的频率比曲线，像示波器的 X/Y 模式 */
+function lissajous(rand: () => number): string {
+  const ratios = [[3, 2], [5, 4], [3, 4], [5, 6], [2, 3], [4, 5]];
+  const [a, b] = ratios[Math.floor(rand() * ratios.length)];
+  const delta = Math.PI * (0.25 + rand() * 0.5);
+  const layers = 9;
+  const steps = 420;
+  let ink = '';
+  let accent = '';
+  for (let layer = 0; layer < layers; layer++) {
+    const k = 1 - layer * 0.085;
+    const shift = layer * 0.06;
+    let d = '';
+    for (let i = 0; i <= steps; i++) {
+      const t = (i / steps) * Math.PI * 2;
+      const x = COVER_W / 2 + Math.sin(a * t + delta + shift) * COVER_W * 0.36 * k;
+      const y = COVER_H / 2 + Math.sin(b * t) * COVER_H * 0.38 * k;
+      d += `${i === 0 ? 'M' : 'L'}${r(x)} ${r(y)}`;
+    }
+    if (layer === 2) accent += d;
+    else ink += d;
+  }
+  return (
+    `<g fill="none" stroke-linejoin="round">` +
+    `<path d="${ink}" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/>` +
+    `<path d="${accent}" ${ACCENT_STROKE} stroke-width="2.2"/></g>`
+  );
+}
+
+const generators: Record<CoverStyle, (rand: () => number) => string> = { flow, moire, ridge, halftone, lissajous };
 
 export interface CoverInfo {
   file: string;
@@ -195,7 +227,7 @@ export function coverInfo(id: string, style?: CoverStyle): CoverInfo {
   const h = hash(id);
   return {
     file: `/covers/${id.replaceAll('/', '--')}.svg`,
-    style: style ?? coverStyles[h % coverStyles.length],
+    style: style ?? autoStyles[h % autoStyles.length],
     code: `SIG-${h.toString(16).padStart(8, '0').slice(0, 4).toUpperCase()}`,
   };
 }

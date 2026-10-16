@@ -1,0 +1,17 @@
+---
+import LabGrid from '@/components/LabGrid.astro';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { labs } from '@/lab/registry';
+---
+
+<BaseLayout title="实验室" description="可以直接在浏览器里玩的视觉与交互实验。">
+  <header class="container page-intro">
+    <p class="kicker">/lab — {labs.length} 个实验</p>
+    <h1>实验室</h1>
+    <p>可以直接在浏览器里玩的视觉与交互实验。每一个都能调参数。</p>
+  </header>
+
+  <div class="container">
+    <LabGrid entries={labs} />
+  </div>
+</BaseLayout>

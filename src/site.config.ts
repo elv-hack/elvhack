@@ -9,6 +9,7 @@ export const site = {
   ogImage: '/og.png',
   nav: [
     { href: '/posts/', label: '文章' },
+    { href: '/lab/', label: '实验' },
     { href: '/tags/', label: '标签' },
     { href: '/about/', label: '关于' },
   ],

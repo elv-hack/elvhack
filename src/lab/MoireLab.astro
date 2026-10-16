@@ -1,0 +1,181 @@
+---
+/** EXP-02 莫尔纹：两组规则图案错开叠加产生的干涉条纹 */
+---
+
+<moire-lab class="lab-stage">
+  <canvas aria-label="莫尔纹干涉图案，可用指针移动第二组图案" role="img"></canvas>
+  <details class="lab-panel" open>
+    <summary>参数 / controls</summary>
+    <div class="controls">
+      <div class="lab-options" role="radiogroup" aria-label="图案">
+        <label><input type="radio" name="mode" value="rings" checked /><span>同心圆</span></label>
+        <label><input type="radio" name="mode" value="lines" /><span>平行线</span></label>
+        <label><input type="radio" name="mode" value="grid" /><span>网格</span></label>
+      </div>
+      <label class="lab-control">间距 <output data-for="spacing">14</output>
+        <input name="spacing" type="range" min="5" max="40" step="1" value="14" />
+      </label>
+      <label class="lab-control">线宽 <output data-for="width">1.4</output>
+        <input name="width" type="range" min="0.5" max="5" step="0.1" value="1.4" />
+      </label>
+      <label class="lab-control">旋转 <output data-for="angle">4</output>
+        <input name="angle" type="range" min="0" max="45" step="0.5" value="4" />
+      </label>
+      <div class="lab-buttons">
+        <button type="button" data-action="pause" aria-pressed="false">暂停</button>
+      </div>
+    </div>
+  </details>
+</moire-lab>
+
+<script>
+  import { bindPanel } from '@/scripts/lab-panel';
+  import { Loop } from '@/scripts/loop';
+  import { prefersReducedMotion, themeColors } from '@/scripts/theme';
+
+  class MoireLab extends HTMLElement {
+    #ctx!: CanvasRenderingContext2D;
+    #canvas!: HTMLCanvasElement;
+    #loop!: Loop;
+    #resize?: ResizeObserver;
+    #cleanup: (() => void)[] = [];
+    #state = { mode: 'rings', spacing: 14, width: 1.4, angle: 4 };
+    #w = 1;
+    #h = 1;
+    #dpr = 1;
+    #t = 0;
+    #target: { x: number; y: number } | null = null;
+    #b = { x: 0, y: 0 };
+    #colors = themeColors();
+
+    connectedCallback() {
+      this.#canvas = this.querySelector('canvas')!;
+      this.#ctx = this.#canvas.getContext('2d')!;
+      this.#loop = new Loop(this, () => this.#frame());
+
+      const panel = bindPanel(
+        this,
+        {
+          spacing: (v) => (this.#state.spacing = v),
+          width: (v) => (this.#state.width = v),
+          angle: (v) => (this.#state.angle = v),
+        },
+        { fixed: { width: 1 }, choices: { mode: (v) => (this.#state.mode = v) } },
+      );
+      panel.on('pause', (button) => {
+        this.#loop.paused = !this.#loop.paused;
+        button.setAttribute('aria-pressed', String(this.#loop.paused));
+        button.textContent = this.#loop.paused ? '播放' : '暂停';
+      });
+
+      this.#resize = new ResizeObserver(() => {
+        const rect = this.getBoundingClientRect();
+        this.#dpr = Math.min(devicePixelRatio || 1, 2);
+        this.#w = Math.round(rect.width * this.#dpr);
+        this.#h = Math.round(rect.height * this.#dpr);
+        this.#canvas.width = this.#w;
+        this.#canvas.height = this.#h;
+        this.#b = { x: this.#w * 0.58, y: this.#h * 0.5 };
+        this.#draw();
+      });
+      this.#resize.observe(this);
+
+      const onMove = (event: PointerEvent) => {
+        const rect = this.getBoundingClientRect();
+        this.#target = { x: (event.clientX - rect.left) * this.#dpr, y: (event.clientY - rect.top) * this.#dpr };
+        if (this.#loop.paused) this.#frame();
+      };
+      const onLeave = () => (this.#target = null);
+      const onTheme = () => {
+        this.#colors = themeColors();
+        this.#draw();
+      };
+      const onInput = () => this.#loop.paused && this.#draw();
+      this.#canvas.addEventListener('pointermove', onMove);
+      this.#canvas.addEventListener('pointerleave', onLeave);
+      this.addEventListener('input', onInput);
+      document.addEventListener('themechange', onTheme);
+      this.#cleanup.push(
+        () => this.#canvas.removeEventListener('pointermove', onMove),
+        () => this.#canvas.removeEventListener('pointerleave', onLeave),
+        () => this.removeEventListener('input', onInput),
+        () => document.removeEventListener('themechange', onTheme),
+      );
+
+      if (prefersReducedMotion()) this.#loop.paused = true;
+      this.#loop.start();
+    }
+
+    disconnectedCallback() {
+      this.#loop.stop();
+      this.#resize?.disconnect();
+      for (const fn of this.#cleanup) fn();
+    }
+
+    #frame() {
+      this.#t += 0.006;
+      // 没有指针时，第二组图案绕中心缓慢漂移
+      const target = this.#target ?? {
+        x: this.#w * (0.5 + Math.cos(this.#t) * 0.08),
+        y: this.#h * (0.5 + Math.sin(this.#t * 1.3) * 0.08),
+      };
+      this.#b.x += (target.x - this.#b.x) * 0.12;
+      this.#b.y += (target.y - this.#b.y) * 0.12;
+      this.#draw();
+    }
+
+    #draw() {
+      const ctx = this.#ctx;
+      const { mode, spacing, width, angle } = this.#state;
+      const d = this.#dpr;
+      const step = spacing * d;
+      const a = { x: this.#w / 2, y: this.#h / 2 };
+      const reach = Math.hypot(this.#w, this.#h);
+
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = this.#colors.bg;
+      ctx.fillRect(0, 0, this.#w, this.#h);
+      ctx.lineWidth = width * d;
+
+      const rings = (cx: number, cy: number) => {
+        ctx.beginPath();
+        for (let r = step; r < reach; r += step) {
+          ctx.moveTo(cx + r, cy);
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        }
+        ctx.stroke();
+      };
+
+      const lines = (cx: number, cy: number, rotation: number, cross = false) => {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(rotation);
+        ctx.beginPath();
+        for (let x = -reach; x < reach; x += step) {
+          ctx.moveTo(x, -reach);
+          ctx.lineTo(x, reach);
+          if (cross) {
+            ctx.moveTo(-reach, x);
+            ctx.lineTo(reach, x);
+          }
+        }
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      const rad = (angle * Math.PI) / 180;
+      const layers: [string, number, () => void][] = [
+        [this.#colors.fg, 0.45, () => (mode === 'rings' ? rings(a.x, a.y) : lines(a.x, a.y, 0, mode === 'grid'))],
+        [this.#colors.accent, 0.55, () => (mode === 'rings' ? rings(this.#b.x, this.#b.y) : lines(this.#b.x, this.#b.y, rad, mode === 'grid'))],
+      ];
+      for (const [color, alpha, draw] of layers) {
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = alpha;
+        draw();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  if (!customElements.get('moire-lab')) customElements.define('moire-lab', MoireLab);
+</script>

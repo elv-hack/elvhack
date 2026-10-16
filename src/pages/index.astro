@@ -2,11 +2,13 @@
 import FeaturedPost from '@/components/FeaturedPost.astro';
 import FieldCanvas from '@/components/FieldCanvas.astro';
 import HeroHud from '@/components/HeroHud.astro';
+import LabGrid from '@/components/LabGrid.astro';
 import Marquee from '@/components/Marquee.astro';
 import PostList from '@/components/PostList.astro';
 import StatusPanel from '@/components/StatusPanel.astro';
 import TagCloud from '@/components/TagCloud.astro';
 import Wordmark from '@/components/Wordmark.astro';
+import { labs } from '@/lab/registry';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { getPosts, getTags } from '@/lib/posts';
 import { site } from '@/site.config';
@@ -40,12 +42,20 @@ const tags = getTags(posts);
     {more.length > 0 && <PostList posts={more} start={2} />}
   </section>
 
+  <section class="container block">
+    <h2 class="section-head">
+      <span><span class="num">[02]</span> 实验室</span>
+      <a href="/lab/">全部实验 →</a>
+    </h2>
+    <LabGrid entries={labs.slice(0, 4)} compact />
+  </section>
+
   {
     tags.length > 0 && (
       <section class="container block">
         <h2 class="section-head">
           <span>
-            <span class="num">[02]</span> 标签
+            <span class="num">[03]</span> 标签
           </span>
           <a href="/tags/">全部标签 →</a>
         </h2>
@@ -56,7 +66,7 @@ const tags = getTags(posts);
 
   <section class="container block">
     <h2 class="section-head">
-      <span><span class="num">[03]</span> 状态</span>
+      <span><span class="num">[04]</span> 状态</span>
       <a href="/about/">关于本站 →</a>
     </h2>
     <StatusPanel posts={posts} />

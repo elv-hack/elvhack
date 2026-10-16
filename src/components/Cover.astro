@@ -3,11 +3,13 @@
  * 文章的生成封面。图形来自 /covers/<id>.svg，通过 <use> 引用，
  * 浏览器只下载一次，并从这里继承 color / --cover-accent / --cover-bg 来适配明暗主题。
  */
-import { COVER_H, COVER_W } from '@/lib/generative';
+import { COVER_H, COVER_W, type CoverInfo } from '@/lib/generative';
 import { postCover, type Post } from '@/lib/posts';
 
 export interface Props {
-  post: Post;
+  /** 文章，或直接给出封面信息（实验室条目用） */
+  post?: Post;
+  info?: CoverInfo;
   /** 显示左下角的信号编号 */
   label?: boolean;
   /** 页面切换时参与形变的名字 */
@@ -15,8 +17,8 @@ export interface Props {
   class?: string;
 }
 
-const { post, label = false, name, class: className } = Astro.props;
-const { file, style, code } = postCover(post);
+const { post, info, label = false, name, class: className } = Astro.props;
+const { file, style, code } = info ?? postCover(post!);
 ---
 
 <div class:list={['cover', className]} data-style={style} transition:name={name}>

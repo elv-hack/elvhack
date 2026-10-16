@@ -1,0 +1,118 @@
+---
+/** EXP-01 流场：首页背景引擎的可调版本 */
+---
+
+<flow-lab class="lab-stage">
+  <canvas aria-label="粒子流场，可用指针搅动" role="img"></canvas>
+  <details class="lab-panel" open>
+    <summary>参数 / controls</summary>
+    <div class="controls">
+      <label class="lab-control">粒子数 <output data-for="count">1600</output>
+        <input name="count" type="range" min="300" max="4000" step="100" value="1600" />
+      </label>
+      <label class="lab-control">尺度 <output data-for="scale">16</output>
+        <input name="scale" type="range" min="4" max="60" step="1" value="16" />
+      </label>
+      <label class="lab-control">速度 <output data-for="speed">1.15</output>
+        <input name="speed" type="range" min="0.2" max="4" step="0.05" value="1.15" />
+      </label>
+      <label class="lab-control">拖尾 <output data-for="fade">0.085</output>
+        <input name="fade" type="range" min="0.01" max="0.3" step="0.005" value="0.085" />
+      </label>
+      <label class="lab-control">涡旋 <output data-for="swirl">0.90</output>
+        <input name="swirl" type="range" min="0" max="1" step="0.05" value="0.9" />
+      </label>
+      <div class="lab-buttons">
+        <button type="button" data-action="pause" aria-pressed="false">暂停</button>
+        <button type="button" data-action="clear">清屏</button>
+        <button type="button" data-action="random">随机</button>
+      </div>
+    </div>
+  </details>
+</flow-lab>
+
+<script>
+  import { FlowField } from '@/scripts/flow-field';
+  import { bindPanel } from '@/scripts/lab-panel';
+  import { Loop } from '@/scripts/loop';
+  import { prefersReducedMotion, themeColors } from '@/scripts/theme';
+
+  class FlowLab extends HTMLElement {
+    #field!: FlowField;
+    #loop!: Loop;
+    #resize?: ResizeObserver;
+    #cleanup: (() => void)[] = [];
+
+    connectedCallback() {
+      const canvas = this.querySelector('canvas')!;
+      this.#field = new FlowField(canvas, { maxCount: 4000 });
+      this.#colors();
+      this.#loop = new Loop(this, () => this.#field.step());
+
+      const panel = bindPanel(this, {
+        count: (v) => this.#field.setCount(v),
+        scale: (v) => (this.#field.params.scale = v / 10000),
+        speed: (v) => (this.#field.params.speed = v),
+        fade: (v) => (this.#field.params.fade = v),
+        swirl: (v) => (this.#field.params.swirl = v),
+      }, { fixed: { swirl: 2 } });
+
+      this.#resize = new ResizeObserver(() => {
+        const rect = this.getBoundingClientRect();
+        this.#field.resize(rect.width, rect.height, panel.value('count'));
+      });
+      this.#resize.observe(this);
+
+      panel.on('pause', (button) => {
+        this.#loop.paused = !this.#loop.paused;
+        button.setAttribute('aria-pressed', String(this.#loop.paused));
+        button.textContent = this.#loop.paused ? '播放' : '暂停';
+      });
+      panel.on('clear', () => this.#field.clear());
+      panel.on('random', () => {
+        panel.set('scale', 4 + Math.round(Math.random() * 50));
+        panel.set('speed', +(0.4 + Math.random() * 2.6).toFixed(2));
+        panel.set('fade', +(0.02 + Math.random() * 0.15).toFixed(3));
+        panel.set('swirl', +(Math.random()).toFixed(2));
+        this.#field.clear();
+      });
+
+      const onMove = (event: PointerEvent) => {
+        const rect = this.getBoundingClientRect();
+        this.#field.setPointer(event.clientX - rect.left, event.clientY - rect.top);
+      };
+      const onLeave = () => this.#field.releasePointer();
+      const onTheme = () => {
+        this.#colors();
+        this.#field.clear();
+      };
+      canvas.addEventListener('pointermove', onMove);
+      canvas.addEventListener('pointerleave', onLeave);
+      document.addEventListener('themechange', onTheme);
+      this.#cleanup.push(
+        () => canvas.removeEventListener('pointermove', onMove),
+        () => canvas.removeEventListener('pointerleave', onLeave),
+        () => document.removeEventListener('themechange', onTheme),
+      );
+
+      if (prefersReducedMotion()) {
+        this.#loop.paused = true;
+        requestAnimationFrame(() => this.#field.renderStatic(200));
+      }
+      this.#loop.start();
+    }
+
+    disconnectedCallback() {
+      this.#loop.stop();
+      this.#resize?.disconnect();
+      for (const fn of this.#cleanup) fn();
+    }
+
+    #colors() {
+      const { bg, fg, accent } = themeColors();
+      this.#field.colors = { bg, ink: fg, accent };
+    }
+  }
+
+  if (!customElements.get('flow-lab')) customElements.define('flow-lab', FlowLab);
+</script>

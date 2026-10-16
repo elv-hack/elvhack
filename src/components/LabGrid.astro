@@ -1,0 +1,120 @@
+---
+import { labCode, labCover, type LabEntry } from '@/lab/registry';
+import Cover from './Cover.astro';
+
+export interface Props {
+  entries: LabEntry[];
+  /** 首页用紧凑的四列 */
+  compact?: boolean;
+}
+
+const { entries, compact = false } = Astro.props;
+---
+
+<ul class:list={['lab-grid', { compact }]}>
+  {
+    entries.map((entry) => (
+      <li>
+        <a href={`/lab/${entry.slug}/`} class="card" data-spotlight>
+          <Cover info={labCover(entry)} class="art" name={`lab-${entry.slug}`} />
+          <span class="info">
+            <span class="code mono">
+              {labCode(entry)} · {entry.en}
+            </span>
+            <span class="title">{entry.title}</span>
+            {!compact && <span class="desc">{entry.description}</span>}
+          </span>
+        </a>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .lab-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-5);
+    padding: 0;
+    list-style: none;
+  }
+
+  .compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    text-decoration: none;
+    transition: border-color 0.3s;
+  }
+
+  .card:hover {
+    border-color: var(--accent-ink);
+  }
+
+  .card :global(.art) {
+    aspect-ratio: 16 / 10;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .card:hover :global(.art svg) {
+    transform: scale(1.06);
+  }
+
+  .info {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-5) var(--space-5);
+  }
+
+  .code {
+    font-size: var(--step--2);
+    color: var(--accent-ink);
+    text-transform: uppercase;
+  }
+
+  .title {
+    font-family: var(--font-serif);
+    font-size: var(--step-2);
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .compact .title {
+    font-size: var(--step-1);
+  }
+
+  .desc {
+    font-size: var(--step--1);
+    line-height: 1.7;
+    color: var(--fg-muted);
+  }
+
+  @media (max-width: 900px) {
+    .compact {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 600px) {
+    .lab-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .compact {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3);
+    }
+
+    .compact .info {
+      padding: var(--space-3);
+    }
+  }
+</style>

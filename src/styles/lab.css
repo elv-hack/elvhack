@@ -1,0 +1,151 @@
+/* 实验室：全屏舞台与浮动控制面板（组件里由脚本操作的元素较多，样式集中写在这里） */
+.lab-stage {
+  position: relative;
+  display: block;
+  height: calc(100svh - var(--header-h));
+  min-height: 520px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.lab-stage > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+
+.lab-panel {
+  position: absolute;
+  right: var(--gutter);
+  bottom: var(--space-5);
+  z-index: 3;
+  width: min(300px, calc(100% - var(--gutter) * 2));
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--bg) 74%, transparent);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  font-size: var(--step--1);
+  line-height: 1.4;
+}
+
+.lab-panel > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.7rem 0.9rem;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+
+.lab-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lab-panel > summary::after {
+  content: '−';
+  color: var(--accent-ink);
+}
+
+.lab-panel:not([open]) > summary::after {
+  content: '+';
+}
+
+.lab-panel .controls {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0 0.9rem 0.9rem;
+}
+
+.lab-control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 0.8rem;
+  align-items: center;
+  color: var(--fg-muted);
+}
+
+.lab-control output {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-control input[type='range'] {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent-ink);
+}
+
+.lab-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.lab-options label {
+  cursor: pointer;
+}
+
+.lab-options input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lab-options span,
+.lab-buttons button {
+  display: inline-block;
+  padding: 0.35em 0.8em;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--fg-muted);
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.lab-options input:checked + span {
+  border-color: var(--accent-ink);
+  color: var(--accent-ink);
+}
+
+.lab-options input:focus-visible + span {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 2px;
+}
+
+.lab-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding-top: 0.2rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+
+.lab-buttons button:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+@media (max-width: 640px) {
+  .lab-panel {
+    right: var(--gutter);
+    bottom: var(--space-4);
+  }
+}
