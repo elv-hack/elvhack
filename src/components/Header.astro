@@ -1,0 +1,220 @@
+---
+import { site } from '@/site.config';
+import ThemeToggle from './ThemeToggle.astro';
+
+const path = Astro.url.pathname;
+const isActive = (href: string) => path === href || path.startsWith(href);
+---
+
+<site-header>
+  <a href="#main" class="skip">跳到正文</a>
+  <div class="bar container">
+    <a href="/" class="brand" aria-label={`${site.title} 首页`}>
+      <span class="mark" aria-hidden="true"></span>
+      <span class="word mono">elvhack</span><span class="caret mono" aria-hidden="true">_</span>
+    </a>
+    <nav aria-label="主导航">
+      <ul>
+        {
+          site.nav.map((item) => (
+            <li>
+              <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <div class="tools">
+      <a href="/rss.xml" class="icon-btn rss" aria-label="RSS 订阅">
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+          <path d="M5 4.5a14.5 14.5 0 0 1 14.5 14.5M5 10.5a8.5 8.5 0 0 1 8.5 8.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+          <circle cx="6" cy="18" r="1.6" fill="currentColor"></circle>
+        </svg>
+      </a>
+      <ThemeToggle />
+    </div>
+  </div>
+</site-header>
+
+<style>
+  site-header {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 50;
+    display: block;
+    height: var(--header-h);
+    border-bottom: 1px solid transparent;
+    transition:
+      background-color 0.25s ease,
+      border-color 0.25s ease;
+  }
+
+  site-header[data-scrolled] {
+    background: color-mix(in oklab, var(--bg) 80%, transparent);
+    border-bottom-color: var(--line);
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    height: 100%;
+  }
+
+  .skip {
+    position: absolute;
+    left: var(--gutter);
+    top: -100px;
+    padding: var(--space-2) var(--space-4);
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .skip:focus {
+    top: 12px;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-right: auto;
+  }
+
+  .mark {
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    box-shadow: 0 0 0 1px var(--line-strong);
+    transition: transform 0.5s var(--ease-out);
+  }
+
+  .brand:hover .mark {
+    transform: rotate(135deg) scale(0.85);
+  }
+
+  .caret {
+    margin-left: -0.55rem;
+    color: var(--accent-ink);
+    animation: blink 1.1s steps(1) infinite;
+  }
+
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  nav ul {
+    display: flex;
+    gap: clamp(0.9rem, 2.5vw, 2rem);
+    padding: 0;
+    list-style: none;
+  }
+
+  nav a {
+    position: relative;
+    display: inline-block;
+    padding-block: 0.4rem;
+    font-size: 0.95rem;
+    text-decoration: none;
+    color: var(--fg-muted);
+    transition: color 0.15s;
+  }
+
+  nav a:hover,
+  nav a[aria-current='page'] {
+    color: var(--fg);
+  }
+
+  nav a::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s var(--ease-out);
+  }
+
+  nav a:hover::after,
+  nav a[aria-current='page']::after {
+    transform: scaleX(1);
+  }
+
+  .tools {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-right: calc(var(--space-2) * -1);
+  }
+
+  .tools :global(.icon-btn) {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--fg-muted);
+    transition:
+      color 0.15s,
+      background-color 0.15s;
+  }
+
+  .tools :global(.icon-btn:hover) {
+    color: var(--fg);
+    background: var(--line);
+  }
+
+  @media (max-width: 480px) {
+    .bar {
+      gap: var(--space-4);
+    }
+
+    .rss {
+      display: none !important;
+    }
+  }
+</style>
+
+<script>
+  class SiteHeader extends HTMLElement {
+    #frame = 0;
+
+    connectedCallback() {
+      addEventListener('scroll', this.#onScroll, { passive: true });
+      this.#update();
+    }
+
+    disconnectedCallback() {
+      removeEventListener('scroll', this.#onScroll);
+      cancelAnimationFrame(this.#frame);
+    }
+
+    #onScroll = () => {
+      cancelAnimationFrame(this.#frame);
+      this.#frame = requestAnimationFrame(this.#update);
+    };
+
+    #update = () => {
+      this.toggleAttribute('data-scrolled', scrollY > 8);
+    };
+  }
+
+  if (!customElements.get('site-header')) customElements.define('site-header', SiteHeader);
+</script>

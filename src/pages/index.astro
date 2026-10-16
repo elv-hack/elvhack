@@ -1,0 +1,135 @@
+---
+import FieldCanvas from '@/components/FieldCanvas.astro';
+import PostList from '@/components/PostList.astro';
+import ScrambleText from '@/components/ScrambleText.astro';
+import TagCloud from '@/components/TagCloud.astro';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getPosts, getTags } from '@/lib/posts';
+import { site } from '@/site.config';
+
+const posts = await getPosts();
+const latest = posts.slice(0, 8);
+const tags = getTags(posts);
+---
+
+<BaseLayout>
+  <section class="hero" aria-labelledby="hero-title">
+    <FieldCanvas />
+    <div class="container hero-inner">
+      <p class="kicker mono">[ signal / noise ] — 个人实验室</p>
+      <h1 id="hero-title" class="wordmark">
+        <ScrambleText text="ELVHACK" trigger="load" />
+      </h1>
+      <p class="tagline">{site.tagline}<br />写下做过的东西，留下能玩的实验。</p>
+      <a href="#latest" class="scroll mono">↓ 最近的信号</a>
+    </div>
+  </section>
+
+  <section id="latest" class="container block">
+    <h2 class="section-head">
+      <span><span class="num">[01]</span> 最近</span>
+      {posts.length > latest.length && <a href="/posts/">全部 {posts.length} 篇 →</a>}
+    </h2>
+    {latest.length > 0 ? <PostList posts={latest} /> : <p class="empty">还没有文章。信号正在路上。</p>}
+  </section>
+
+  {
+    tags.length > 0 && (
+      <section class="container block">
+        <h2 class="section-head">
+          <span>
+            <span class="num">[02]</span> 标签
+          </span>
+          <a href="/tags/">全部标签 →</a>
+        </h2>
+        <TagCloud tags={tags} />
+      </section>
+    )
+  }
+</BaseLayout>
+
+<style>
+  .hero {
+    position: relative;
+    display: flex;
+    align-items: end;
+    min-height: max(560px, 100svh);
+    margin-top: calc(var(--header-h) * -1);
+    padding-block: calc(var(--header-h) + var(--space-7)) var(--space-8);
+  }
+
+  /* 底部渐隐进页面背景 */
+  .hero::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    height: 30%;
+    background: linear-gradient(to bottom, transparent, var(--bg));
+    pointer-events: none;
+  }
+
+  .hero-inner {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .hero-inner a {
+    pointer-events: auto;
+  }
+
+  .kicker {
+    font-size: var(--step--1);
+    color: var(--accent-ink);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .wordmark {
+    margin-top: var(--space-3);
+    margin-left: -0.05em;
+    font-size: var(--step-hero);
+    font-weight: 700;
+    line-height: 0.86;
+    letter-spacing: -0.055em;
+  }
+
+  .tagline {
+    margin-top: var(--space-6);
+    max-width: 30em;
+    font-size: var(--step-1);
+    line-height: 1.6;
+    color: var(--fg-muted);
+  }
+
+  .scroll {
+    display: inline-block;
+    margin-top: var(--space-7);
+    font-size: var(--step--1);
+    color: var(--fg-muted);
+    text-decoration: none;
+    animation: bob 2.4s ease-in-out infinite;
+  }
+
+  .scroll:hover {
+    color: var(--accent-ink);
+  }
+
+  @keyframes bob {
+    50% {
+      transform: translateY(4px);
+    }
+  }
+
+  .block {
+    margin-top: var(--space-8);
+  }
+
+  .hero + .block {
+    margin-top: var(--space-6);
+  }
+
+  .empty {
+    color: var(--fg-muted);
+  }
+</style>

@@ -1,0 +1,99 @@
+---
+import { tagHref, type Tag } from '@/lib/posts';
+
+export interface Props {
+  tags: Tag[];
+  size?: 'sm' | 'lg';
+}
+
+const { tags, size = 'sm' } = Astro.props;
+const max = Math.max(1, ...tags.map((tag) => tag.count));
+---
+
+<ul class:list={['tag-cloud', size]}>
+  {
+    tags.map((tag) => (
+      <li>
+        <a href={tagHref(tag.name)} style={`--w: ${0.4 + (tag.count / max) * 0.6}`}>
+          <span class="hash" aria-hidden="true">
+            #
+          </span>
+          {tag.name}
+          <sup class="mono">
+            {tag.count}
+            <span class="sr-only">篇</span>
+          </sup>
+        </a>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: 0;
+    list-style: none;
+  }
+
+  a {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.15em;
+    padding: 0.35em 0.85em;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: var(--step--1);
+    transition:
+      background-color 0.15s,
+      color 0.15s,
+      border-color 0.15s;
+  }
+
+  a:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+
+  .hash {
+    color: var(--accent-ink);
+  }
+
+  a:hover .hash {
+    color: inherit;
+  }
+
+  sup {
+    font-size: 0.7em;
+    color: var(--fg-muted);
+  }
+
+  a:hover sup {
+    color: inherit;
+  }
+
+  /* 标签页：按文章数放大字号 */
+  .lg {
+    gap: var(--space-4) var(--space-6);
+  }
+
+  .lg a {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    font-size: calc(var(--step-2) + var(--w) * (var(--step-4) - var(--step-2)));
+    line-height: 1.1;
+  }
+
+  .lg a:hover {
+    background: none;
+    color: var(--accent-ink);
+  }
+</style>

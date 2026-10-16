@@ -1,0 +1,321 @@
+---
+/**
+ * 示例实验：双正弦信号示波器。叠加模式看合成波形，李萨如模式看两路信号的相位关系。
+ * 在 MDX 里直接写 <SignalScope /> 即可，可选 f1 / f2 / phase 初始值。
+ */
+export interface Props {
+  f1?: number;
+  f2?: number;
+  phase?: number;
+}
+
+const { f1 = 3, f2 = 2, phase = 90 } = Astro.props;
+const uid = `scope-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<signal-scope>
+  <canvas aria-label="双正弦信号波形图" role="img"></canvas>
+  <div class="controls">
+    <label for={`${uid}-f1`}>
+      <span>频率 A</span>
+      <output class="mono" data-for="f1">{f1}</output>
+    </label>
+    <input id={`${uid}-f1`} name="f1" type="range" min="1" max="9" step="1" value={f1} />
+
+    <label for={`${uid}-f2`}>
+      <span>频率 B</span>
+      <output class="mono" data-for="f2">{f2}</output>
+    </label>
+    <input id={`${uid}-f2`} name="f2" type="range" min="1" max="9" step="1" value={f2} />
+
+    <label for={`${uid}-phase`}>
+      <span>相位差</span>
+      <output class="mono" data-for="phase">{phase}°</output>
+    </label>
+    <input id={`${uid}-phase`} name="phase" type="range" min="0" max="360" step="1" value={phase} />
+
+    <fieldset>
+      <legend class="sr-only">显示模式</legend>
+      <label><input type="radio" name={`${uid}-mode`} value="sum" checked /> 叠加</label>
+      <label><input type="radio" name={`${uid}-mode`} value="xy" /> 李萨如</label>
+      <button type="button" data-action="toggle" aria-pressed="true" class="mono">❚❚ 暂停</button>
+    </fieldset>
+  </div>
+</signal-scope>
+
+<style>
+  signal-scope {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  canvas {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    touch-action: pan-y;
+  }
+
+  .controls {
+    display: grid;
+    grid-template-columns: 6.5rem 1fr;
+    align-items: center;
+    gap: var(--space-2) var(--space-4);
+    font-size: var(--step--1);
+    line-height: 1.4;
+  }
+
+  .controls > label {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-2);
+    color: var(--fg-muted);
+  }
+
+  output {
+    color: var(--fg);
+  }
+
+  input[type='range'] {
+    width: 100%;
+    accent-color: var(--accent-ink);
+  }
+
+  fieldset {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-2);
+    padding: 0;
+    border: 0;
+  }
+
+  fieldset label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    cursor: pointer;
+  }
+
+  input[type='radio'] {
+    accent-color: var(--accent-ink);
+  }
+
+  button {
+    margin-left: auto;
+    padding: 0.35em 0.9em;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: transparent;
+    font-size: var(--step--2);
+  }
+
+  button:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+
+  @media (max-width: 480px) {
+    canvas {
+      aspect-ratio: 4 / 3;
+    }
+
+    .controls {
+      grid-template-columns: 1fr;
+      gap: var(--space-1);
+    }
+
+    input[type='range'] {
+      margin-bottom: var(--space-2);
+    }
+  }
+</style>
+
+<script>
+  class SignalScope extends HTMLElement {
+    #canvas!: HTMLCanvasElement;
+    #ctx!: CanvasRenderingContext2D;
+    #state = { f1: 3, f2: 2, phase: Math.PI / 2, mode: 'sum' as 'sum' | 'xy', running: true };
+    #t = 0;
+    #frame = 0;
+    #visible = false;
+    #w = 0;
+    #h = 0;
+    #dpr = 1;
+    #colors = { ink: '#fff', faint: '#888', line: '#333', accent: '#c6ff3d' };
+    #resize?: ResizeObserver;
+    #intersection?: IntersectionObserver;
+
+    connectedCallback() {
+      this.#canvas = this.querySelector('canvas')!;
+      this.#ctx = this.#canvas.getContext('2d')!;
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      for (const input of this.querySelectorAll<HTMLInputElement>('input')) {
+        input.addEventListener('input', this.#onInput);
+        this.#apply(input);
+      }
+
+      const toggle = this.querySelector<HTMLButtonElement>('[data-action="toggle"]')!;
+      const syncToggle = () => {
+        toggle.setAttribute('aria-pressed', String(this.#state.running));
+        toggle.textContent = this.#state.running ? '❚❚ 暂停' : '▶ 播放';
+      };
+      if (reduce) this.#state.running = false;
+      syncToggle();
+      toggle.addEventListener('click', () => {
+        this.#state.running = !this.#state.running;
+        syncToggle();
+        this.#schedule();
+      });
+
+      this.#readColors();
+      document.addEventListener('themechange', this.#onTheme);
+      this.#resize = new ResizeObserver(() => this.#onResize());
+      this.#resize.observe(this.#canvas);
+      this.#intersection = new IntersectionObserver(([entry]) => {
+        this.#visible = entry.isIntersecting;
+        this.#schedule();
+      });
+      this.#intersection.observe(this);
+    }
+
+    disconnectedCallback() {
+      cancelAnimationFrame(this.#frame);
+      this.#resize?.disconnect();
+      this.#intersection?.disconnect();
+      document.removeEventListener('themechange', this.#onTheme);
+    }
+
+    #apply(input: HTMLInputElement) {
+      if (input.type === 'radio') {
+        if (input.checked) this.#state.mode = input.value as 'sum' | 'xy';
+        return;
+      }
+      const value = Number(input.value);
+      const out = this.querySelector(`output[data-for="${input.name}"]`);
+      if (input.name === 'phase') {
+        this.#state.phase = (value * Math.PI) / 180;
+        if (out) out.textContent = `${value}°`;
+      } else if (input.name === 'f1' || input.name === 'f2') {
+        this.#state[input.name] = value;
+        if (out) out.textContent = String(value);
+      }
+    }
+
+    #onInput = (event: Event) => {
+      this.#apply(event.target as HTMLInputElement);
+      this.#draw();
+    };
+
+    #onTheme = () => {
+      this.#readColors();
+      this.#draw();
+    };
+
+    #readColors() {
+      const css = getComputedStyle(document.documentElement);
+      const get = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+      this.#colors = {
+        ink: get('--fg', '#fff'),
+        faint: get('--fg-faint', '#888'),
+        line: get('--line', '#333'),
+        accent: get('--accent-ink', '#c6ff3d'),
+      };
+    }
+
+    #onResize() {
+      const rect = this.#canvas.getBoundingClientRect();
+      this.#dpr = Math.min(devicePixelRatio || 1, 2);
+      this.#w = Math.round(rect.width * this.#dpr);
+      this.#h = Math.round(rect.height * this.#dpr);
+      this.#canvas.width = this.#w;
+      this.#canvas.height = this.#h;
+      this.#draw();
+    }
+
+    #schedule() {
+      cancelAnimationFrame(this.#frame);
+      if (!this.#state.running || !this.#visible) return;
+      const loop = () => {
+        this.#t += 0.012;
+        this.#draw();
+        this.#frame = requestAnimationFrame(loop);
+      };
+      this.#frame = requestAnimationFrame(loop);
+    }
+
+    #draw() {
+      const ctx = this.#ctx;
+      const { f1, f2, phase, mode } = this.#state;
+      const w = this.#w;
+      const h = this.#h;
+      if (!w || !h) return;
+      const d = this.#dpr;
+      const t = this.#t;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // 网格
+      ctx.strokeStyle = this.#colors.line;
+      ctx.lineWidth = d;
+      ctx.beginPath();
+      for (let i = 1; i < 10; i++) {
+        const x = Math.round((w * i) / 10) + 0.5;
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+      }
+      for (let i = 1; i < 6; i++) {
+        const y = Math.round((h * i) / 6) + 0.5;
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+      }
+      ctx.stroke();
+
+      const amp = h * 0.38;
+      const mid = h / 2;
+      const steps = Math.max(300, Math.round(w / 2));
+
+      const trace = (fn: (s: number) => [number, number], color: string, width: number, alpha = 1) => {
+        ctx.beginPath();
+        for (let i = 0; i <= steps; i++) {
+          const [x, y] = fn(i / steps);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width * d;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      };
+
+      const TAU = Math.PI * 2;
+      if (mode === 'sum') {
+        const a = (s: number) => Math.sin(TAU * f1 * s + phase + t * f1);
+        const b = (s: number) => Math.sin(TAU * f2 * s + t * f2);
+        trace((s) => [s * w, mid - a(s) * amp * 0.5], this.#colors.faint, 1, 0.9);
+        trace((s) => [s * w, mid - b(s) * amp * 0.5], this.#colors.faint, 1, 0.5);
+        trace((s) => [s * w, mid - ((a(s) + b(s)) / 2) * amp], this.#colors.accent, 2.2);
+      } else {
+        const r = Math.min(w, h) * 0.4;
+        trace(
+          (s) => [w / 2 + Math.sin(TAU * f1 * s + phase + t) * r * (w / h > 1.4 ? 1.5 : 1), mid + Math.sin(TAU * f2 * s) * r],
+          this.#colors.accent,
+          2,
+        );
+      }
+
+      ctx.fillStyle = this.#colors.faint;
+      ctx.font = `${11 * d}px ${getComputedStyle(this).getPropertyValue('--font-mono') || 'monospace'}`;
+      ctx.fillText(`${mode === 'sum' ? 'SUM' : 'X/Y'}  f₁=${f1}  f₂=${f2}  φ=${Math.round((phase * 180) / Math.PI)}°`, 10 * d, 18 * d);
+    }
+  }
+
+  if (!customElements.get('signal-scope')) customElements.define('signal-scope', SignalScope);
+</script>

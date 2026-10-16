@@ -1,0 +1,76 @@
+---
+import PostList from '@/components/PostList.astro';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getPosts, postYear, type Post } from '@/lib/posts';
+
+const posts = await getPosts();
+
+const years = new Map<number, Post[]>();
+for (const post of posts) {
+  const year = postYear(post.data.pubDate);
+  years.set(year, [...(years.get(year) ?? []), post]);
+}
+
+let offset = 1;
+const groups = [...years].map(([year, items]) => {
+  const group = { year, items, start: offset };
+  offset += items.length;
+  return group;
+});
+---
+
+<BaseLayout title="文章" description="全部文章，按年份归档。">
+  <header class="container page-intro">
+    <p class="kicker">/posts — {posts.length} 篇</p>
+    <h1>文章</h1>
+    <p>全部文章，按年份归档。</p>
+  </header>
+
+  <div class="container">
+    {
+      groups.map(({ year, items, start }) => (
+        <section class="year" aria-labelledby={`y${year}`}>
+          <h2 id={`y${year}`} class="year-num">
+            {year}
+          </h2>
+          <PostList posts={items} start={start} />
+        </section>
+      ))
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .year {
+    display: grid;
+    grid-template-columns: 12rem 1fr;
+    gap: var(--space-6);
+    align-items: start;
+  }
+
+  .year + .year {
+    margin-top: var(--space-8);
+  }
+
+  .year-num {
+    position: sticky;
+    top: calc(var(--header-h) + var(--space-4));
+    font-size: var(--step-4);
+    font-weight: 700;
+    letter-spacing: -0.05em;
+    line-height: 1;
+    color: transparent;
+    -webkit-text-stroke: 1px var(--fg-muted);
+  }
+
+  @media (max-width: 860px) {
+    .year {
+      grid-template-columns: 1fr;
+      gap: var(--space-4);
+    }
+
+    .year-num {
+      position: static;
+    }
+  }
+</style>

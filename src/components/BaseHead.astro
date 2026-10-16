@@ -1,0 +1,108 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import { site } from '@/site.config';
+
+export interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  article?: {
+    published: Date;
+    modified?: Date;
+    tags: readonly string[];
+  };
+}
+
+const { title, description = site.description, image = site.ogImage, article } = Astro.props;
+const pageTitle = title ? `${title} · ${site.title}` : `${site.title} — ${site.tagline}`;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const imageUrl = new URL(image, Astro.site);
+
+const jsonLd = article
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: title,
+      description,
+      image: imageUrl.href,
+      datePublished: article.published.toISOString(),
+      dateModified: (article.modified ?? article.published).toISOString(),
+      author: { '@type': 'Person', name: site.author, url: site.url },
+      mainEntityOfPage: canonical.href,
+      keywords: article.tags.join(', '),
+      inLanguage: site.lang,
+    }
+  : {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: site.title,
+      url: site.url,
+      description: site.description,
+      inLanguage: site.lang,
+    };
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script is:inline>
+  (() => {
+    const apply = () => {
+      let theme;
+      try {
+        theme = localStorage.getItem('theme');
+      } catch {}
+      if (theme !== 'light' && theme !== 'dark') {
+        theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = theme;
+    };
+    apply();
+    if (!window.__themeBound) {
+      window.__themeBound = true;
+      // 页面切换时把当前主题带到新文档上，避免闪烁
+      document.addEventListener('astro:before-swap', (event) => {
+        event.newDocument.documentElement.dataset.theme = document.documentElement.dataset.theme;
+      });
+    }
+  })();
+</script>
+<title>{pageTitle}</title>
+<meta name="description" content={description} />
+<meta name="author" content={site.author} />
+<meta name="generator" content={Astro.generator} />
+<link rel="canonical" href={canonical} />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="alternate" type="application/rss+xml" title={`${site.title} RSS`} href="/rss.xml" />
+<link rel="sitemap" href="/sitemap-index.xml" />
+<meta name="theme-color" content="#f2f0ea" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0a0b0d" media="(prefers-color-scheme: dark)" />
+
+<meta property="og:site_name" content={site.title} />
+<meta property="og:locale" content={site.locale} />
+<meta property="og:type" content={article ? 'article' : 'website'} />
+<meta property="og:title" content={title ?? site.title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:image" content={imageUrl} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+{
+  article && (
+    <>
+      <meta property="article:published_time" content={article.published.toISOString()} />
+      {article.modified && <meta property="article:modified_time" content={article.modified.toISOString()} />}
+      {article.tags.map((tag) => (
+        <meta property="article:tag" content={tag} />
+      ))}
+    </>
+  )
+}
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title ?? site.title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={imageUrl} />
+
+<script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+<ClientRouter />

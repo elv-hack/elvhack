@@ -1,0 +1,19 @@
+---
+import TagCloud from '@/components/TagCloud.astro';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getPosts, getTags } from '@/lib/posts';
+
+const tags = getTags(await getPosts());
+---
+
+<BaseLayout title="标签" description="按标签浏览全部文章。">
+  <header class="container page-intro">
+    <p class="kicker">/tags — {tags.length} 个</p>
+    <h1>标签</h1>
+    <p>按主题浏览。字越大，写得越多。</p>
+  </header>
+
+  <div class="container">
+    {tags.length > 0 ? <TagCloud tags={tags} size="lg" /> : <p>还没有标签。</p>}
+  </div>
+</BaseLayout>

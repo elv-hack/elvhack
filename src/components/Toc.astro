@@ -1,0 +1,108 @@
+---
+import type { MarkdownHeading } from 'astro';
+
+export interface Props {
+  headings: MarkdownHeading[];
+}
+
+const items = Astro.props.headings.filter((h) => (h.depth === 2 || h.depth === 3) && h.slug !== 'footnote-label');
+---
+
+{
+  items.length > 1 && (
+    <toc-nav>
+      <nav aria-label="目录">
+        <p class="label mono">目录 / index</p>
+        <ol>
+          {items.map((h) => (
+            <li class={`d${h.depth}`}>
+              <a href={`#${h.slug}`} data-slug={h.slug}>
+                {h.text}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+    </toc-nav>
+  )
+}
+
+<style>
+  toc-nav {
+    display: block;
+  }
+
+  .label {
+    margin-bottom: var(--space-3);
+    font-size: var(--step--2);
+    color: var(--fg-faint);
+    text-transform: uppercase;
+  }
+
+  ol {
+    padding: 0;
+    list-style: none;
+    border-left: 1px solid var(--line);
+  }
+
+  a {
+    display: block;
+    margin-left: -1px;
+    padding: 0.3em 0 0.3em 1em;
+    border-left: 2px solid transparent;
+    font-size: var(--step--1);
+    line-height: 1.5;
+    color: var(--fg-muted);
+    text-decoration: none;
+    transition:
+      color 0.15s,
+      border-color 0.15s;
+  }
+
+  .d3 a {
+    padding-left: 2em;
+    font-size: var(--step--2);
+  }
+
+  a:hover {
+    color: var(--fg);
+  }
+
+  a[aria-current='true'] {
+    color: var(--fg);
+    border-left-color: var(--accent-ink);
+  }
+</style>
+
+<script>
+  class TocNav extends HTMLElement {
+    #observer?: IntersectionObserver;
+
+    connectedCallback() {
+      const links = [...this.querySelectorAll<HTMLAnchorElement>('a[data-slug]')];
+      const targets = links.map((a) => document.getElementById(a.dataset.slug!)).filter((el): el is HTMLElement => !!el);
+      const visible = new Set<string>();
+
+      this.#observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) visible.add(entry.target.id);
+            else visible.delete(entry.target.id);
+          }
+          // 取视口内第一个标题；都不在视口时保留上一个
+          const active = targets.find((t) => visible.has(t.id));
+          if (!active) return;
+          for (const a of links) a.setAttribute('aria-current', String(a.dataset.slug === active.id));
+        },
+        { rootMargin: '-64px 0px -55% 0px' },
+      );
+      for (const t of targets) this.#observer.observe(t);
+    }
+
+    disconnectedCallback() {
+      this.#observer?.disconnect();
+    }
+  }
+
+  if (!customElements.get('toc-nav')) customElements.define('toc-nav', TocNav);
+</script>

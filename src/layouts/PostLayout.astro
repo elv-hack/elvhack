@@ -1,0 +1,337 @@
+---
+import type { MarkdownHeading } from 'astro';
+import '@/styles/prose.css';
+
+import Giscus from '@/components/Giscus.astro';
+import Toc from '@/components/Toc.astro';
+import { formatDate, postHref, readingMinutes, tagHref, type Post } from '@/lib/posts';
+import BaseLayout from './BaseLayout.astro';
+
+export interface Props {
+  post: Post;
+  headings: MarkdownHeading[];
+  prev?: Post;
+  next?: Post;
+}
+
+const { post, headings, prev, next } = Astro.props;
+const { title, description, pubDate, updatedDate, tags } = post.data;
+const minutes = readingMinutes(post.body);
+---
+
+<BaseLayout title={title} description={description} article={{ published: pubDate, modified: updatedDate, tags }}>
+  <div class="progress" aria-hidden="true"></div>
+
+  <article class="container post">
+    <header class="post-head">
+      <a href="/posts/" class="back mono">← 全部文章</a>
+      {
+        tags.length > 0 && (
+          <ul class="tags mono">
+            {tags.map((tag) => (
+              <li>
+                <a href={tagHref(tag)}>#{tag}</a>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+      <h1 transition:name={`title-${post.id}`}>{title}</h1>
+      <p class="lede">{description}</p>
+      <dl class="meta mono">
+        <div>
+          <dt>发布</dt>
+          <dd><time datetime={pubDate.toISOString()}>{formatDate(pubDate)}</time></dd>
+        </div>
+        {
+          updatedDate && (
+            <div>
+              <dt>更新</dt>
+              <dd>
+                <time datetime={updatedDate.toISOString()}>{formatDate(updatedDate)}</time>
+              </dd>
+            </div>
+          )
+        }
+        <div>
+          <dt>阅读</dt>
+          <dd>约 {minutes} 分钟</dd>
+        </div>
+      </dl>
+    </header>
+
+    <div class="layout">
+      <aside class="side">
+        <Toc headings={headings} />
+      </aside>
+
+      <post-body class="prose">
+        <slot />
+      </post-body>
+    </div>
+
+    <footer class="post-foot">
+      {
+        (prev || next) && (
+          <nav class="pager" aria-label="相邻文章">
+            {prev ? (
+              <a href={postHref(prev)} rel="prev" class="older">
+                <span class="mono">← 更早</span>
+                <span class="t">{prev.data.title}</span>
+              </a>
+            ) : (
+              <span />
+            )}
+            {next && (
+              <a href={postHref(next)} rel="next" class="newer">
+                <span class="mono">更新 →</span>
+                <span class="t">{next.data.title}</span>
+              </a>
+            )}
+          </nav>
+        )
+      }
+      <Giscus />
+    </footer>
+  </article>
+</BaseLayout>
+
+<style>
+  .progress {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 60;
+    height: 2px;
+    background: var(--accent);
+    transform-origin: left;
+    transform: scaleX(0);
+    display: none;
+  }
+
+  @supports (animation-timeline: scroll()) {
+    .progress {
+      display: block;
+      animation: grow linear both;
+      animation-timeline: scroll(root);
+    }
+  }
+
+  @keyframes grow {
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  .post-head {
+    max-width: 52rem;
+    padding-block: var(--space-8) var(--space-7);
+  }
+
+  .back {
+    display: inline-block;
+    margin-bottom: var(--space-6);
+    font-size: var(--step--1);
+    color: var(--fg-muted);
+    text-decoration: none;
+  }
+
+  .back:hover {
+    color: var(--accent-ink);
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+    padding: 0;
+    list-style: none;
+    font-size: var(--step--1);
+  }
+
+  .tags a {
+    color: var(--accent-ink);
+    text-decoration: none;
+  }
+
+  .tags a:hover {
+    text-decoration: underline;
+  }
+
+  h1 {
+    font-size: var(--step-4);
+    font-weight: 650;
+    letter-spacing: -0.035em;
+    line-height: 1.08;
+  }
+
+  .lede {
+    margin-top: var(--space-5);
+    max-width: 40em;
+    font-size: var(--step-1);
+    color: var(--fg-muted);
+    line-height: 1.6;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3) var(--space-6);
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+    font-size: var(--step--1);
+  }
+
+  .meta div {
+    display: flex;
+    gap: 0.6em;
+  }
+
+  dt {
+    color: var(--fg-faint);
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, var(--measure));
+    gap: var(--space-8);
+  }
+
+  .side {
+    display: none;
+  }
+
+  @media (min-width: 1100px) {
+    .layout {
+      grid-template-columns: minmax(0, var(--measure)) 15rem;
+      justify-content: space-between;
+    }
+
+    .side {
+      display: block;
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .side :global(toc-nav) {
+      position: sticky;
+      top: calc(var(--header-h) + var(--space-6));
+    }
+  }
+
+  post-body {
+    display: block;
+    min-width: 0;
+  }
+
+  .post-foot {
+    max-width: var(--measure);
+    margin-top: var(--space-8);
+  }
+
+  .pager {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+
+  .pager a {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    text-decoration: none;
+    transition:
+      border-color 0.15s,
+      background-color 0.15s;
+  }
+
+  .pager a:hover {
+    border-color: var(--accent-ink);
+    background: var(--bg-elev);
+  }
+
+  .pager .mono {
+    font-size: var(--step--2);
+    color: var(--fg-muted);
+  }
+
+  .pager .t {
+    font-family: var(--font-display);
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .newer {
+    grid-column: 2;
+    text-align: right;
+  }
+
+  @media (max-width: 560px) {
+    .pager {
+      grid-template-columns: 1fr;
+    }
+
+    .newer {
+      grid-column: 1;
+    }
+  }
+</style>
+
+<script>
+  // 正文增强：标题锚点、代码块语言标签与复制按钮
+  class PostBody extends HTMLElement {
+    connectedCallback() {
+      for (const heading of this.querySelectorAll<HTMLElement>(':is(h2, h3, h4)[id]:not(.sr-only)')) {
+        if (heading.querySelector('.anchor')) continue;
+        const anchor = document.createElement('a');
+        anchor.className = 'anchor';
+        anchor.href = `#${heading.id}`;
+        anchor.textContent = '#';
+        anchor.setAttribute('aria-label', `链接到「${heading.textContent}」`);
+        heading.append(anchor);
+      }
+
+      for (const pre of this.querySelectorAll<HTMLPreElement>('pre')) {
+        if (pre.parentElement?.classList.contains('code-block')) continue;
+        const wrap = document.createElement('div');
+        wrap.className = 'code-block';
+        pre.replaceWith(wrap);
+        wrap.append(pre);
+
+        const tools = document.createElement('div');
+        tools.className = 'code-tools';
+        const lang = pre.dataset.language;
+        if (lang && lang !== 'plaintext') {
+          const label = document.createElement('span');
+          label.textContent = lang;
+          tools.append(label);
+        }
+        if (navigator.clipboard) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = 'copy';
+          button.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(pre.innerText);
+              button.textContent = 'copied';
+              button.toggleAttribute('data-copied', true);
+              setTimeout(() => {
+                button.textContent = 'copy';
+                button.removeAttribute('data-copied');
+              }, 1600);
+            } catch {
+              button.textContent = 'failed';
+            }
+          });
+          tools.append(button);
+        }
+        wrap.append(tools);
+      }
+    }
+  }
+
+  if (!customElements.get('post-body')) customElements.define('post-body', PostBody);
+</script>

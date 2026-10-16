@@ -1,0 +1,101 @@
+---
+/** 文章里的可交互实验外框：<Experiment title="..."> 任意交互组件 </Experiment> */
+export interface Props {
+  title: string;
+  note?: string;
+}
+
+const { title, note } = Astro.props;
+---
+
+<figure class="experiment">
+  <figcaption class="bar">
+    <span class="live mono"><i aria-hidden="true"></i>LIVE</span>
+    <span class="title">{title}</span>
+    <span class="tag mono">experiment</span>
+  </figcaption>
+  <div class="stage">
+    <slot />
+  </div>
+  {note && <p class="note">{note}</p>}
+</figure>
+
+<style>
+  .experiment {
+    margin-block: 2.2em;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+    overflow: hidden;
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: 0.55em 0.9em;
+    border-bottom: 1px solid var(--line);
+    font-size: var(--step--1);
+    line-height: 1.4;
+  }
+
+  .live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    padding: 0.15em 0.55em;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: var(--step--2);
+    font-weight: 600;
+  }
+
+  .live i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: blink 1.2s steps(1) infinite;
+  }
+
+  @keyframes blink {
+    50% {
+      opacity: 0.2;
+    }
+  }
+
+  .title {
+    font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tag {
+    margin-left: auto;
+    color: var(--fg-faint);
+    font-size: var(--step--2);
+    text-transform: uppercase;
+  }
+
+  .stage {
+    padding: var(--space-4);
+  }
+
+  .note {
+    padding: 0 var(--space-4) var(--space-4);
+    font-size: var(--step--1);
+    color: var(--fg-muted);
+  }
+
+  @media (max-width: 480px) {
+    .tag {
+      display: none;
+    }
+
+    .stage {
+      padding: var(--space-3);
+    }
+  }
+</style>

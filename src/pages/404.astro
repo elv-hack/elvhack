@@ -1,0 +1,114 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="404 · 信号丢失" description="这个页面不存在。">
+  <section class="lost">
+    <static-noise aria-hidden="true"><canvas></canvas></static-noise>
+    <div class="container inner">
+      <p class="mono code">ERR_SIGNAL_LOST</p>
+      <h1>404</h1>
+      <p class="msg">信号丢失。你要找的页面不存在，或者已经被移走了。</p>
+      <a href="/" class="home mono">← 回到首页</a>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .lost {
+    position: relative;
+    display: grid;
+    align-items: center;
+    min-height: calc(100svh - var(--header-h) - 12rem);
+    overflow: hidden;
+  }
+
+  static-noise {
+    position: absolute;
+    inset: 0;
+    opacity: 0.13;
+    mask-image: radial-gradient(ellipse at 30% 50%, #000 30%, transparent 75%);
+  }
+
+  static-noise canvas {
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+
+  .inner {
+    position: relative;
+  }
+
+  .code {
+    font-size: var(--step--1);
+    color: var(--accent-ink);
+  }
+
+  h1 {
+    font-size: clamp(6rem, 30vw, 20rem);
+    font-weight: 700;
+    letter-spacing: -0.07em;
+    line-height: 0.9;
+    margin-left: -0.06em;
+  }
+
+  .msg {
+    margin-top: var(--space-4);
+    max-width: 28em;
+    color: var(--fg-muted);
+  }
+
+  .home {
+    display: inline-block;
+    margin-top: var(--space-6);
+    padding: 0.6em 1.1em;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: var(--step--1);
+    text-decoration: none;
+  }
+
+  .home:hover {
+    background: var(--fg);
+    color: var(--bg);
+  }
+</style>
+
+<script>
+  // 低分辨率电视雪花
+  class StaticNoise extends HTMLElement {
+    #frame = 0;
+
+    connectedCallback() {
+      const canvas = this.querySelector('canvas')!;
+      const ctx = canvas.getContext('2d')!;
+      canvas.width = 160;
+      canvas.height = 90;
+      const image = ctx.createImageData(canvas.width, canvas.height);
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let last = 0;
+
+      const draw = (now = 0) => {
+        if (now - last > 70) {
+          last = now;
+          const data = image.data;
+          for (let i = 0; i < data.length; i += 4) {
+            const v = Math.random() * 255;
+            data[i] = data[i + 1] = data[i + 2] = v;
+            data[i + 3] = 255;
+          }
+          ctx.putImageData(image, 0, 0);
+        }
+        if (!reduce) this.#frame = requestAnimationFrame(draw);
+      };
+      draw();
+    }
+
+    disconnectedCallback() {
+      cancelAnimationFrame(this.#frame);
+    }
+  }
+
+  if (!customElements.get('static-noise')) customElements.define('static-noise', StaticNoise);
+</script>

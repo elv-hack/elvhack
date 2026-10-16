@@ -1,0 +1,35 @@
+---
+import '@/styles/prose.css';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { site } from '@/site.config';
+---
+
+<BaseLayout title="关于" description="关于 Elvhack 这个站点。">
+  <header class="container page-intro">
+    <p class="kicker">/about</p>
+    <h1>关于</h1>
+    <p>{site.tagline}</p>
+  </header>
+
+  <div class="container">
+    <div class="prose about">
+      <p>
+        Elvhack 是一个个人站点：写下做过的东西、想清楚的问题，偶尔放一些可以直接在页面里玩的交互实验。
+      </p>
+      <h2 id="site">这个站</h2>
+      <ul>
+        <li>用 <a href="https://astro.build" target="_blank" rel="noopener">Astro</a> 生成静态页面，文章是 Markdown / MDX。</li>
+        <li>托管在 Cloudflare Pages，源码在 <a href={site.social.github} target="_blank" rel="noopener">GitHub</a>。</li>
+        <li>可以通过 <a href="/rss.xml">RSS</a> 订阅更新。</li>
+      </ul>
+      <h2 id="contact">联系</h2>
+      <p>在 <a href={site.social.github} target="_blank" rel="noopener">GitHub</a> 上找到我。</p>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .about {
+    max-width: var(--measure);
+  }
+</style>

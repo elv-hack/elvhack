@@ -1,0 +1,103 @@
+---
+import { site } from '@/site.config';
+
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="container inner">
+    <p class="status mono"><span class="dot" aria-hidden="true"></span> 信号正常 · signal ok</p>
+    <ul class="links mono">
+      <li><a href={site.social.github} rel="me noopener" target="_blank">GitHub ↗</a></li>
+      <li><a href="/rss.xml">RSS</a></li>
+      <li><a href="/sitemap-index.xml">Sitemap</a></li>
+    </ul>
+    <p class="copy mono">© {year} {site.title} · Built with Astro, served by Cloudflare</p>
+  </div>
+  <div class="wordmark" aria-hidden="true">ELVHACK</div>
+</footer>
+
+<style>
+  .site-footer {
+    position: relative;
+    margin-top: var(--space-9);
+    border-top: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .inner {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-3) var(--space-5);
+    padding-block: var(--space-6) var(--space-4);
+    font-size: var(--step--1);
+    color: var(--fg-muted);
+  }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6em;
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 25%, transparent);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    50% {
+      box-shadow: 0 0 0 6px transparent;
+    }
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    padding: 0;
+    list-style: none;
+    justify-content: end;
+  }
+
+  .links a {
+    text-decoration: none;
+  }
+
+  .links a:hover {
+    color: var(--accent-ink);
+  }
+
+  .copy {
+    grid-column: 1 / -1;
+    color: var(--fg-faint);
+    font-size: var(--step--2);
+  }
+
+  .wordmark {
+    margin-bottom: -0.24em;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(4rem, 21vw, 22rem);
+    line-height: 1;
+    letter-spacing: -0.06em;
+    text-align: center;
+    color: transparent;
+    -webkit-text-stroke: 1px var(--line-strong);
+    user-select: none;
+  }
+
+  @media (max-width: 560px) {
+    .inner {
+      grid-template-columns: 1fr;
+    }
+
+    .links {
+      justify-content: start;
+    }
+  }
+</style>

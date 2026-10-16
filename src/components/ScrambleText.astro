@@ -1,0 +1,90 @@
+---
+/**
+ * 文字“解码”效果。真实文本留给读屏器，动画只作用于 aria-hidden 的可见层。
+ * trigger="load"  进入页面时播放一次
+ * trigger="hover" 最近的链接/按钮被悬停或聚焦时播放
+ */
+export interface Props {
+  text: string;
+  trigger?: 'load' | 'hover';
+}
+
+const { text, trigger = 'hover' } = Astro.props;
+---
+
+<scramble-text data-trigger={trigger}><span class="sr-only">{text}</span><span aria-hidden="true" data-visual>{text}</span></scramble-text>
+
+<script>
+  const LATIN_UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const LATIN_LOWER = 'abcdefghijklmnopqrstuvwxyz';
+  const DIGITS = '0123456789';
+  const CJK = '信号噪声实验代码视觉数据回路频率相位矩阵粒子场域光谱';
+  const SYMBOLS = '#%&*+=<>/\\?!';
+
+  const poolFor = (char: string) => {
+    if (/\s/.test(char)) return '';
+    if (/[㐀-鿿]/.test(char)) return CJK;
+    if (/[A-Z]/.test(char)) return LATIN_UPPER;
+    if (/[a-z]/.test(char)) return LATIN_LOWER;
+    if (/[0-9]/.test(char)) return DIGITS;
+    return SYMBOLS;
+  };
+
+  const pick = (pool: string) => pool[Math.floor(Math.random() * pool.length)];
+
+  class ScrambleText extends HTMLElement {
+    #visual!: HTMLElement;
+    #text = '';
+    #frame = 0;
+    #host: Element | null = null;
+
+    connectedCallback() {
+      this.#visual = this.querySelector('[data-visual]')!;
+      this.#text = this.#visual.textContent ?? '';
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+      if (this.dataset.trigger === 'load') {
+        this.play(900);
+      } else {
+        this.#host = this.closest('a, button') ?? this;
+        this.#host.addEventListener('pointerenter', this.#onEnter);
+        this.#host.addEventListener('focus', this.#onEnter);
+      }
+    }
+
+    disconnectedCallback() {
+      cancelAnimationFrame(this.#frame);
+      this.#host?.removeEventListener('pointerenter', this.#onEnter);
+      this.#host?.removeEventListener('focus', this.#onEnter);
+    }
+
+    #onEnter = () => this.play(420);
+
+    play(duration: number) {
+      cancelAnimationFrame(this.#frame);
+      const chars = [...this.#text];
+      // 每个字符在不同时间点“锁定”，从左到右带一点随机
+      const settle = chars.map((_, i) => (i / chars.length) * 0.7 + Math.random() * 0.3);
+      const start = performance.now();
+      let last = 0;
+
+      const tick = (now: number) => {
+        const progress = Math.min(1, (now - start) / duration);
+        if (now - last > 40 || progress === 1) {
+          last = now;
+          this.#visual.textContent = chars
+            .map((char, i) => {
+              const pool = poolFor(char);
+              return progress >= settle[i] || !pool ? char : pick(pool);
+            })
+            .join('');
+        }
+        if (progress < 1) this.#frame = requestAnimationFrame(tick);
+      };
+
+      this.#frame = requestAnimationFrame(tick);
+    }
+  }
+
+  if (!customElements.get('scramble-text')) customElements.define('scramble-text', ScrambleText);
+</script>

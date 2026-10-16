@@ -1,0 +1,45 @@
+---
+export interface Props {
+  type?: 'note' | 'tip' | 'warn';
+  title?: string;
+}
+
+const labels = { note: '注意', tip: '提示', warn: '警告' } as const;
+const { type = 'note', title } = Astro.props;
+---
+
+<aside class:list={['callout', type]}>
+  <p class="head mono">{title ?? labels[type]}</p>
+  <div class="content"><slot /></div>
+</aside>
+
+<style>
+  .callout {
+    margin-block: 1.8em;
+    padding: 1em 1.2em;
+    border: 1px solid var(--line-strong);
+    border-left: 4px solid var(--fg-muted);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+  }
+
+  .tip {
+    border-left-color: var(--accent-ink);
+  }
+
+  .warn {
+    border-left-color: #e8572a;
+  }
+
+  .head {
+    margin-bottom: 0.4em;
+    font-size: var(--step--1);
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+  }
+
+  .content > :global(* + *) {
+    margin-top: 0.8em;
+  }
+</style>
