@@ -40,7 +40,29 @@ const enabled = Boolean(repoId && categoryId);
   const giscusTheme = () => (document.documentElement.dataset.theme === 'dark' ? 'transparent_dark' : 'light');
 
   class GiscusComments extends HTMLElement {
+    #observer?: IntersectionObserver;
+
     connectedCallback() {
+      // 读者快滚到评论区时才加载 giscus：首屏不多下载一个 iframe 应用，
+      // 也不会在打开文章时就去查询（还没人评论时查询会返回 404，控制台里一片红）
+      this.#observer = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          this.#observer?.disconnect();
+          this.#load();
+        },
+        { rootMargin: '0px 0px 600px 0px' },
+      );
+      this.#observer.observe(this);
+      document.addEventListener('themechange', this.#onTheme);
+    }
+
+    disconnectedCallback() {
+      this.#observer?.disconnect();
+      document.removeEventListener('themechange', this.#onTheme);
+    }
+
+    #load() {
       const script = document.createElement('script');
       const attrs: Record<string, string> = {
         'data-repo': this.dataset.repo!,
@@ -54,18 +76,12 @@ const enabled = Boolean(repoId && categoryId);
         'data-input-position': 'top',
         'data-theme': giscusTheme(),
         'data-lang': 'zh-CN',
-        'data-loading': 'lazy',
       };
       for (const [key, value] of Object.entries(attrs)) script.setAttribute(key, value);
       script.src = 'https://giscus.app/client.js';
       script.crossOrigin = 'anonymous';
       script.async = true;
       this.append(script);
-      document.addEventListener('themechange', this.#onTheme);
-    }
-
-    disconnectedCallback() {
-      document.removeEventListener('themechange', this.#onTheme);
     }
 
     #onTheme = () => {
