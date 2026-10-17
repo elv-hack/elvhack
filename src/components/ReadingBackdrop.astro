@@ -1,14 +1,12 @@
 ---
 /**
- * 文章页背景：信号点阵。
+ * 文章页背景：每次打开文章随机选一套图案（点阵 / 等高线 / 波形 / 蓝图 / 数据雨，见 src/scripts/reading-scenes.ts）。
  * 固定在视口、不随页面滚动；每一帧都只由“坐标 + 时间”算出来，不依赖上一帧，
  * 所以停留多久都不会积累颜色误差或残影。
- * - 点的大小和亮度随缓慢流动的噪声起伏，零星的点用强调色并缓慢闪烁
- * - 约每 16 秒一道很淡的扫描带从上往下扫过
- * - 鼠标附近的点轻微放大（只在有鼠标的设备上）
- * - 正文栏后面的点压淡，保证阅读
+ * - 同一会话里尽量不连续两次出现同一套
+ * - 鼠标附近的图案轻微增强（只在有鼠标的设备上）；正文栏后面压淡，保证阅读
  * 30fps、标签页在后台时暂停；减少动态效果时只画一帧；没有 WebGL 时退回静态 CSS 点阵。
- * 可在 ⌘K 面板里开关（localStorage: ambient = off）。
+ * ⌘K 面板里可以换一套，或整体开关（localStorage: ambient = off）。
  */
 ---
 
@@ -55,78 +53,29 @@
 <script>
   import { toRgb } from '@/scripts/color';
   import { Loop } from '@/scripts/loop';
+  import { fragmentFor, scenes, type Scene } from '@/scripts/reading-scenes';
   import { hasFinePointer, prefersReducedMotion, themeColors } from '@/scripts/theme';
 
-  const CELL = 22;
-  const LENS = 160;
   /** 宽度不变、高度变化小于这个比例时（手机地址栏）不重设画布 */
   const MINOR_HEIGHT_CHANGE = 0.2;
-
+  const UNIFORMS = ['uRes', 'uTime', 'uDpr', 'uBg', 'uInk', 'uAccent', 'uCol', 'uCalm', 'uPointer', 'uLens'];
   const VERT = `attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }`;
 
-  const FRAG = `
-    precision highp float;
-    uniform vec2 uRes;
-    uniform float uTime;
-    uniform float uDpr;
-    uniform float uCell;
-    uniform vec3 uBg;
-    uniform vec3 uInk;
-    uniform vec3 uAccent;
-    uniform vec2 uCol;
-    uniform float uCalm;
-    uniform vec2 uPointer;
-    uniform float uLens;
+  /** 随机挑一套，尽量不和上一次打开文章时相同 */
+  const pickScene = (): Scene => {
+    let last: string | null = null;
+    try {
+      last = sessionStorage.getItem('backdrop-last');
+    } catch {}
+    const pool = scenes.filter((scene) => scene.id !== last);
+    return pool[Math.floor(Math.random() * pool.length)];
+  };
 
-    float hash(vec2 p) {
-      p = fract(p * vec2(127.1, 311.7));
-      p += dot(p, p + 34.5);
-      return fract(p.x * p.y);
-    }
-
-    float noise(vec2 p) {
-      vec2 i = floor(p);
-      vec2 f = fract(p);
-      vec2 u = f * f * (3.0 - 2.0 * f);
-      return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
-    }
-
-    void main() {
-      vec2 p = gl_FragCoord.xy;
-      vec2 id = floor(p / uCell);
-      vec2 c = (id + 0.5) * uCell;
-      vec2 uv = c / min(uRes.x, uRes.y);
-      float t = uTime;
-
-      // 两层噪声缓慢漂移，决定每个点的“信号强度”
-      float n = 0.62 * noise(uv * 2.4 + vec2(t * 0.035, -t * 0.02)) + 0.38 * noise(uv * 6.0 + vec2(-t * 0.05, t * 0.04));
-      float v = smoothstep(0.3, 0.85, n);
-
-      // 扫描带：约 16 秒从顶到底扫一遍（gl_FragCoord.y 从底部算起）
-      float scan = 1.15 - fract(t / 16.0) * 1.3;
-      float band = exp(-pow((c.y / uRes.y - scan) * 9.0, 2.0));
-
-      // 鼠标附近的“放大镜”
-      float lens = uLens * smoothstep(1.0, 0.0, distance(c, uPointer) / (${LENS}.0 * uDpr));
-
-      float level = clamp(v * 0.85 + band * 0.35 + lens * 0.55, 0.0, 1.0);
-      float radius = uCell * (0.05 + 0.13 * level);
-      float aa = 0.9 * uDpr;
-      float dotMask = 1.0 - smoothstep(radius - aa, radius + aa, length(p - c));
-
-      // 少数固定位置的点用强调色，缓慢闪烁
-      float accent = step(0.93, hash(id + 17.0)) * step(0.5, v) * (0.6 + 0.4 * sin(t * 0.8 + hash(id) * 6.2832));
-      vec3 color = mix(uInk, uAccent, accent);
-      float alpha = dotMask * (0.07 + 0.34 * level) * (1.0 + 0.5 * accent);
-
-      // 正文栏压淡
-      float x = gl_FragCoord.x / uRes.x;
-      float column = smoothstep(uCol.x - 0.05, uCol.x + 0.01, x) * (1.0 - smoothstep(uCol.y - 0.01, uCol.y + 0.05, x));
-      alpha *= mix(1.0, uCalm, column);
-
-      gl_FragColor = vec4(mix(uBg, color, clamp(alpha, 0.0, 1.0)), 1.0);
-    }
-  `;
+  const remember = (scene: Scene) => {
+    try {
+      sessionStorage.setItem('backdrop-last', scene.id);
+    } catch {}
+  };
 
   const disabled = () => {
     try {
@@ -138,6 +87,8 @@
 
   class ReadingBackdrop extends HTMLElement {
     #gl: WebGLRenderingContext | null = null;
+    #program: WebGLProgram | null = null;
+    #scene: Scene = scenes[0];
     #u: Record<string, WebGLUniformLocation | null> = {};
     #canvas!: HTMLCanvasElement;
     #loop!: Loop;
@@ -152,7 +103,7 @@
 
     connectedCallback() {
       this.#canvas = this.querySelector('canvas')!;
-      if (!this.#setup()) {
+      if (!this.#setup(pickScene())) {
         this.toggleAttribute('data-fallback', true);
         this.#applyToggle();
         document.addEventListener('ambientchange', this.#applyToggle);
@@ -168,6 +119,7 @@
       this.#resize.observe(this);
       document.addEventListener('themechange', this.#onTheme);
       document.addEventListener('ambientchange', this.#applyToggle);
+      document.addEventListener('backdrop:next', this.#next);
       if (this.#fine) {
         addEventListener('pointermove', this.#onPointer, { passive: true });
         document.documentElement.addEventListener('pointerleave', this.#onLeave);
@@ -182,21 +134,25 @@
       this.#resize?.disconnect();
       document.removeEventListener('themechange', this.#onTheme);
       document.removeEventListener('ambientchange', this.#applyToggle);
+      document.removeEventListener('backdrop:next', this.#next);
       removeEventListener('pointermove', this.#onPointer);
       document.documentElement.removeEventListener('pointerleave', this.#onLeave);
     }
 
-    #setup(): boolean {
-      const gl = this.#canvas.getContext('webgl', { antialias: false, alpha: false, depth: false, powerPreference: 'low-power' });
+    #setup(scene: Scene): boolean {
+      const gl =
+        this.#gl ?? this.#canvas.getContext('webgl', { antialias: false, alpha: false, depth: false, powerPreference: 'low-power' });
       if (!gl) return false;
       const compile = (type: number, source: string) => {
         const shader = gl.createShader(type)!;
         gl.shaderSource(shader, source);
         gl.compileShader(shader);
-        return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null;
+        if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
+        console.warn(`[backdrop:${scene.id}]`, gl.getShaderInfoLog(shader));
+        return null;
       };
       const vs = compile(gl.VERTEX_SHADER, VERT);
-      const fs = compile(gl.FRAGMENT_SHADER, FRAG);
+      const fs = compile(gl.FRAGMENT_SHADER, fragmentFor(scene));
       if (!vs || !fs) return false;
       const program = gl.createProgram()!;
       gl.attachShader(program, vs);
@@ -204,17 +160,33 @@
       gl.bindAttribLocation(program, 0, 'p');
       gl.linkProgram(program);
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return false;
+      if (this.#program) gl.deleteProgram(this.#program);
+      this.#program = program;
       gl.useProgram(program);
-      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-      gl.enableVertexAttribArray(0);
-      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-      for (const name of ['uRes', 'uTime', 'uDpr', 'uCell', 'uBg', 'uInk', 'uAccent', 'uCol', 'uCalm', 'uPointer', 'uLens']) {
-        this.#u[name] = gl.getUniformLocation(program, name);
+      if (!this.#gl) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
       }
+      this.#u = {};
+      for (const name of UNIFORMS) this.#u[name] = gl.getUniformLocation(program, name);
       this.#gl = gl;
+      this.#scene = scene;
+      this.dataset.scene = scene.id;
+      remember(scene);
       return true;
     }
+
+    /** ⌘K“换一套文章背景”：按顺序切到下一套 */
+    #next = () => {
+      if (!this.#gl) return;
+      const i = scenes.indexOf(this.#scene);
+      if (!this.#setup(scenes[(i + 1) % scenes.length])) return;
+      this.#colors();
+      this.#layout(true);
+      document.dispatchEvent(new CustomEvent('backdrop:changed', { detail: this.#scene.label }));
+    };
 
     #applyToggle = () => {
       const off = disabled();
@@ -252,7 +224,6 @@
       gl.viewport(0, 0, this.#canvas.width, this.#canvas.height);
       gl.uniform2f(this.#u.uRes, this.#canvas.width, this.#canvas.height);
       gl.uniform1f(this.#u.uDpr, this.#dpr);
-      gl.uniform1f(this.#u.uCell, CELL * this.#dpr);
 
       // 正文栏在视口中的横向范围；窄屏正文铺满，就整体压淡
       const body = document.querySelector('post-body')?.getBoundingClientRect();

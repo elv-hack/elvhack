@@ -33,7 +33,12 @@ const { entry, prev, next } = Astro.props;
 const Lab = components[entry.slug as keyof typeof components];
 ---
 
-<BaseLayout title={`${entry.title} · 实验室`} description={entry.description} image={`/og/lab--${entry.slug}.png`}>
+<BaseLayout
+  title={`${entry.title} · 实验室`}
+  description={entry.description}
+  image={`/og/lab--${entry.slug}.png`}
+  fontText={entry.title}
+>
   <section class="lab-hero" aria-labelledby="lab-title">
     <Lab />
     <header class="lab-head container">

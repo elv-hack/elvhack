@@ -1,0 +1,247 @@
+---
+/**
+ * 站内链接悬停预览：正文里指向文章或实验的链接，鼠标停一下就浮出一张小卡片
+ * （封面、标题、摘要），不用点进去就知道链接指向什么。触屏设备不启用。
+ */
+import { COVER_H, COVER_W } from '@/lib/generative';
+---
+
+<link-preview>
+  <div class="card" id="link-preview" role="tooltip">
+    <svg class="art" viewBox={`0 0 ${COVER_W} ${COVER_H}`} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <use></use>
+    </svg>
+    <div class="body">
+      <p class="kind mono"><span data-kind></span><span data-code></span></p>
+      <p class="title" data-title></p>
+      <p class="desc" data-desc></p>
+      <p class="meta mono" data-meta></p>
+    </div>
+  </div>
+</link-preview>
+
+<style>
+  .card {
+    --cover-accent: var(--accent-ink);
+    --cover-bg: var(--bg-elev);
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 70;
+    width: min(340px, calc(100vw - 24px));
+    overflow: clip;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+    color: var(--fg);
+    box-shadow: 0 18px 48px -18px rgb(0 0 0 / 0.45);
+    pointer-events: none;
+    visibility: hidden;
+    opacity: 0;
+    translate: 0 var(--from, 6px);
+    transition:
+      opacity 0.16s ease,
+      translate 0.22s var(--ease-out),
+      visibility 0s 0.16s;
+  }
+
+  .card[data-show] {
+    visibility: visible;
+    opacity: 1;
+    translate: 0 0;
+    transition-delay: 0s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card {
+      translate: none;
+    }
+  }
+
+  .art {
+    display: block;
+    width: 100%;
+    height: 96px;
+    border-bottom: 1px solid var(--line);
+    background: var(--cover-bg);
+  }
+
+  .body {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+
+  .body p {
+    margin: 0;
+  }
+
+  .kind {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--step--2);
+    color: var(--accent-ink);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .kind [data-code] {
+    color: var(--fg-faint);
+  }
+
+  .title {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: var(--step-1);
+    line-height: 1.3;
+  }
+
+  .desc {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: var(--step--1);
+    line-height: 1.6;
+    color: var(--fg-muted);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .meta {
+    font-size: var(--step--2);
+    color: var(--fg-faint);
+  }
+</style>
+
+<script>
+  import type { Preview } from '@/pages/previews.json';
+  import { hasFinePointer } from '@/scripts/theme';
+
+  const SHOW_DELAY = 280;
+  const HIDE_DELAY = 120;
+  const GAP = 10;
+  const EDGE = 12;
+
+  let data: Promise<Record<string, Preview> | null> | undefined;
+  const load = () =>
+    (data ??= fetch('/previews.json')
+      .then((response) => (response.ok ? response.json() : null))
+      .catch(() => null));
+
+  /** 正文里指向站内文章 / 实验的链接，返回它的路径 */
+  function previewPath(link: HTMLAnchorElement): string | null {
+    if (!link.closest('.prose') || link.closest('.footnotes, [data-footnote-ref], .anchor')) return null;
+    const url = new URL(link.href, location.href);
+    if (url.origin !== location.origin) return null;
+    const path = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`;
+    if (!/^\/(posts|lab)\/[^/]+\/$/.test(path) || path === location.pathname) return null;
+    return path;
+  }
+
+  class LinkPreview extends HTMLElement {
+    #card!: HTMLElement;
+    #link: HTMLAnchorElement | null = null;
+    #showTimer = 0;
+    #hideTimer = 0;
+    #x = 0;
+    #y = 0;
+    #abort?: AbortController;
+
+    connectedCallback() {
+      this.#card = this.querySelector('.card')!;
+      this.#abort = new AbortController();
+      const { signal } = this.#abort;
+      document.addEventListener('pointerover', this.#onOver, { signal });
+      document.addEventListener('pointerout', this.#onOut, { signal });
+      document.addEventListener('focusin', this.#onFocus, { signal });
+      document.addEventListener('focusout', this.#onOut, { signal });
+      document.addEventListener('keydown', (event) => event.key === 'Escape' && this.#hide(), { signal });
+      document.addEventListener('pointerdown', () => this.#hide(), { signal });
+      addEventListener('scroll', () => this.#hide(), { signal, passive: true });
+    }
+
+    disconnectedCallback() {
+      this.#abort?.abort();
+      clearTimeout(this.#showTimer);
+      clearTimeout(this.#hideTimer);
+    }
+
+    #onOver = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse' || !hasFinePointer()) return;
+      const link = (event.target as Element).closest?.('a');
+      if (!link) return;
+      if (link === this.#link) {
+        // 指针回到了同一个链接（或它里面的元素）上：取消隐藏，继续等待显示
+        clearTimeout(this.#hideTimer);
+        return;
+      }
+      const path = previewPath(link);
+      if (!path) return;
+      this.#x = event.clientX;
+      this.#y = event.clientY;
+      this.#schedule(link, path, SHOW_DELAY);
+    };
+
+    #onFocus = (event: FocusEvent) => {
+      const link = event.target as HTMLElement;
+      if (!(link instanceof HTMLAnchorElement) || !link.matches(':focus-visible')) return;
+      const path = previewPath(link);
+      if (!path) return;
+      const rect = link.getBoundingClientRect();
+      this.#x = rect.left + Math.min(rect.width, 120) / 2;
+      this.#y = rect.top + rect.height / 2;
+      this.#schedule(link, path, 0);
+    };
+
+    #onOut = (event: Event) => {
+      if (!this.#link) return;
+      const next = (event as PointerEvent | FocusEvent).relatedTarget as Node | null;
+      if (next && this.#link.contains(next)) return;
+      clearTimeout(this.#showTimer);
+      clearTimeout(this.#hideTimer);
+      this.#hideTimer = window.setTimeout(() => this.#hide(), HIDE_DELAY);
+    };
+
+    #schedule(link: HTMLAnchorElement, path: string, delay: number) {
+      clearTimeout(this.#showTimer);
+      clearTimeout(this.#hideTimer);
+      this.#link = link;
+      load();
+      this.#showTimer = window.setTimeout(async () => {
+        const preview = (await load())?.[path];
+        if (preview && this.#link === link && link.isConnected) this.#show(link, preview);
+      }, delay);
+    }
+
+    #show(link: HTMLAnchorElement, preview: Preview) {
+      const card = this.#card;
+      card.querySelector('use')!.setAttribute('href', preview.cover);
+      card.querySelector('[data-kind]')!.textContent = preview.kind;
+      card.querySelector('[data-code]')!.textContent = preview.code;
+      card.querySelector('[data-title]')!.textContent = preview.title;
+      card.querySelector('[data-desc]')!.textContent = preview.description;
+      card.querySelector('[data-meta]')!.textContent = preview.meta;
+      link.setAttribute('aria-describedby', card.id);
+
+      // 链接折行时，取指针所在的那一行来定位
+      const rects = [...link.getClientRects()];
+      const rect = rects.find((r) => this.#y >= r.top - 2 && this.#y <= r.bottom + 2) ?? rects[0] ?? link.getBoundingClientRect();
+      const { width, height } = card.getBoundingClientRect();
+      const below = rect.bottom + GAP + height <= innerHeight - EDGE || rect.top - GAP - height < EDGE;
+      const top = below ? rect.bottom + GAP : rect.top - GAP - height;
+      const left = Math.min(Math.max(this.#x - width / 2, EDGE), innerWidth - width - EDGE);
+      card.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+      card.style.setProperty('--from', below ? '6px' : '-6px');
+      requestAnimationFrame(() => card.toggleAttribute('data-show', true));
+    }
+
+    #hide() {
+      clearTimeout(this.#showTimer);
+      clearTimeout(this.#hideTimer);
+      this.#link?.removeAttribute('aria-describedby');
+      this.#link = null;
+      this.#card.removeAttribute('data-show');
+    }
+  }
+
+  if (!customElements.get('link-preview')) customElements.define('link-preview', LinkPreview);
+</script>

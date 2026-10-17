@@ -16,6 +16,7 @@
     "@astrojs/sitemap": "3.7.4",
     "@fontsource-variable/jetbrains-mono": "5.3.0",
     "@fontsource-variable/space-grotesk": "5.3.0",
+    "@fontsource/noto-sans-sc": "5.3.0",
     "@fontsource/noto-serif-sc": "5.3.0",
     "astro": "7.3.8",
     "satori": "0.33.5",

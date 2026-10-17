@@ -29,6 +29,7 @@ const { code, style } = postCover(post);
   description={description}
   image={`/og/${post.id.replaceAll('/', '--')}.png`}
   article={{ published: pubDate, modified: updatedDate, tags }}
+  fontText={title}
 >
   <ReadingBackdrop slot="backdrop" />
   <div class="progress" aria-hidden="true"></div>
@@ -304,6 +305,7 @@ const { code, style } = postCover(post);
   }
 
   post-body {
+    position: relative;
     display: block;
     min-width: 0;
   }
@@ -422,11 +424,14 @@ const { code, style } = postCover(post);
     });
   }
 
-  /** 正文增强：标题锚点、图注、灯箱、代码块标题栏与复制、宽屏旁注 */
+  /** 正文增强：标题锚点、图注、灯箱、代码块标题栏与复制、宽屏旁注、窄屏脚注弹出层 */
   class PostBody extends HTMLElement {
     #notes: { ref: HTMLAnchorElement; note: HTMLElement }[] = [];
     #rail: HTMLElement | null = null;
     #observer?: ResizeObserver;
+    #pop: HTMLElement | null = null;
+    #popRef: HTMLAnchorElement | null = null;
+    #abort?: AbortController;
 
     connectedCallback() {
       this.#anchors();
@@ -437,6 +442,7 @@ const { code, style } = postCover(post);
 
     disconnectedCallback() {
       this.#observer?.disconnect();
+      this.#abort?.abort();
     }
 
     #anchors() {
@@ -562,9 +568,13 @@ const { code, style } = postCover(post);
           el.addEventListener('pointerleave', off);
         }
         ref.addEventListener('click', (event) => {
-          if (this.#rail?.offsetParent === null) return;
-          // 宽屏下点脚注标号不跳到文末，而是让旁注闪一下
           event.preventDefault();
+          if (this.#rail?.offsetParent === null) {
+            // 窄屏没有页边：在标号下方就地弹出注释，不跳到文末
+            this.#togglePop(ref, body);
+            return;
+          }
+          // 宽屏下点脚注标号不跳到文末，而是让旁注闪一下
           note.classList.remove('flash');
           void note.offsetWidth;
           note.classList.add('flash');
@@ -573,10 +583,107 @@ const { code, style } = postCover(post);
       }
 
       this.toggleAttribute('data-sidenotes', true);
+      this.#abort = new AbortController();
+      const { signal } = this.#abort;
+      document.addEventListener(
+        'pointerdown',
+        (event) => {
+          const target = event.target as Element;
+          if (this.#pop && !this.#pop.contains(target) && !target.closest?.('a[data-footnote-ref]')) this.#closePop();
+        },
+        { signal },
+      );
+      document.addEventListener(
+        'keydown',
+        (event) => {
+          if (event.key !== 'Escape' || !this.#pop) return;
+          const ref = this.#popRef;
+          this.#closePop();
+          ref?.focus();
+        },
+        { signal },
+      );
+      let width = innerWidth;
+      addEventListener(
+        'resize',
+        () => {
+          if (innerWidth !== width) this.#closePop();
+          width = innerWidth;
+        },
+        { signal },
+      );
       this.#layoutNotes();
       this.#observer = new ResizeObserver(() => this.#layoutNotes());
       this.#observer.observe(this);
       document.fonts?.ready.then(() => this.#layoutNotes());
+    }
+
+    /** 窄屏脚注：标号下方的小卡片，再点一次标号、点别处或按 Esc 关闭 */
+    #togglePop(ref: HTMLAnchorElement, body: HTMLElement) {
+      const same = this.#popRef === ref;
+      this.#closePop();
+      if (same) return;
+
+      const pop = document.createElement('div');
+      pop.className = 'note-pop';
+      pop.setAttribute('role', 'note');
+      pop.setAttribute('aria-label', `注释 ${ref.textContent}`);
+      pop.tabIndex = -1;
+      const head = document.createElement('div');
+      head.className = 'note-pop-head mono';
+      const num = document.createElement('span');
+      num.textContent = `注 ${ref.textContent}`;
+      const jump = document.createElement('a');
+      jump.href = ref.hash;
+      jump.textContent = '全部注释 ↓';
+      jump.addEventListener('click', () => this.#closePop());
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.textContent = '×';
+      close.setAttribute('aria-label', '关闭注释');
+      close.addEventListener('click', () => {
+        this.#closePop();
+        ref.focus();
+      });
+      head.append(num, jump, close);
+      const content = document.createElement('div');
+      content.className = 'note-pop-body';
+      content.append(...(body.cloneNode(true) as HTMLElement).childNodes);
+      pop.append(head, content);
+      this.append(pop);
+
+      // 放在标号正下方，左右不超出正文栏，小三角对准标号
+      const host = this.getBoundingClientRect();
+      const rect = ref.getBoundingClientRect();
+      const center = rect.left + rect.width / 2 - host.left;
+      const left = Math.min(Math.max(center - pop.offsetWidth / 2, 0), host.width - pop.offsetWidth);
+      pop.style.top = `${Math.round(rect.bottom - host.top + 10)}px`;
+      pop.style.left = `${Math.round(left)}px`;
+      pop.style.setProperty('--caret', `${Math.round(center - left)}px`);
+
+      this.#pop = pop;
+      this.#popRef = ref;
+      ref.classList.add('open');
+      ref.setAttribute('aria-expanded', 'true');
+      pop.focus({ preventScroll: true });
+      const overflow = pop.getBoundingClientRect().bottom - (innerHeight - 16);
+      if (overflow > 0) scrollBy({ top: overflow, behavior: reduceMotion() ? 'auto' : 'smooth' });
+    }
+
+    #closePop() {
+      const pop = this.#pop;
+      if (!pop) return;
+      this.#popRef?.classList.remove('open');
+      this.#popRef?.removeAttribute('aria-expanded');
+      this.#pop = null;
+      this.#popRef = null;
+      if (reduceMotion()) {
+        pop.remove();
+        return;
+      }
+      pop.animate([{}, { opacity: 0, transform: 'translateY(-4px)' }], { duration: 120, easing: 'ease-in', fill: 'forwards' }).finished.then(
+        () => pop.remove(),
+      );
     }
 
     /** 旁注与正文中的标号对齐，互相不重叠 */

@@ -1,5 +1,6 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import { serifSlicesFor } from '@/lib/fonts';
 import { sameAs } from '@/lib/social';
 import { site } from '@/site.config';
 
@@ -12,9 +13,11 @@ export interface Props {
     modified?: Date;
     tags: readonly string[];
   };
+  /** 首屏用宋体显示的文字（通常是 h1），预加载它用到的字体切片 */
+  fontText?: string;
 }
 
-const { title, description = site.description, image = site.ogImage, article } = Astro.props;
+const { title, description = site.description, image = site.ogImage, article, fontText } = Astro.props;
 const pageTitle = title ? `${title} · ${site.title}` : `${site.title} — ${site.tagline}`;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const imageUrl = new URL(image, Astro.site);
@@ -57,6 +60,9 @@ const jsonLd = article
         theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       }
       document.documentElement.dataset.theme = theme;
+      // Windows 上正文换成思源黑体（见 tokens.css 的 :root.win）
+      const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.userAgent;
+      if (/Windows|Win32|Win64/.test(platform)) document.documentElement.classList.add('win');
       try {
         if (localStorage.getItem('crt') === 'on') document.documentElement.classList.add('crt');
       } catch {}
@@ -68,11 +74,13 @@ const jsonLd = article
       document.addEventListener('astro:before-swap', (event) => {
         event.newDocument.documentElement.dataset.theme = document.documentElement.dataset.theme;
         event.newDocument.documentElement.classList.toggle('crt', document.documentElement.classList.contains('crt'));
+        event.newDocument.documentElement.classList.toggle('win', document.documentElement.classList.contains('win'));
       });
     }
   })();
 </script>
 <title>{pageTitle}</title>
+{fontText && serifSlicesFor(fontText).map((href) => <link rel="preload" href={href} as="font" type="font/woff2" crossorigin />)}
 <meta name="description" content={description} />
 <meta name="author" content={site.author} />
 <meta name="generator" content={Astro.generator} />

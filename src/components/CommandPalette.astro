@@ -10,7 +10,8 @@ const commands = [
   ...[{ href: '/', label: '首页' }, ...site.nav].map((item) => ({ group: '跳转', label: item.label, hint: item.href, href: item.href })),
   ...labs.map((entry) => ({ group: '实验', label: entry.title, hint: `${labCode(entry)} · ${entry.en}`, href: `/lab/${entry.slug}/` })),
   { group: '操作', label: '切换明暗主题', hint: 'theme', action: 'theme' },
-  { group: '操作', label: '开 / 关文章背景', hint: 'backdrop', action: 'ambient' },
+  { group: '操作', label: '换一套文章背景', hint: 'next backdrop', action: 'backdrop' },
+  { group: '操作', label: '开 / 关文章背景', hint: 'backdrop on/off', action: 'ambient' },
   { group: '彩蛋', label: 'CRT 模式', hint: 'crt · ↑↑↓↓←→←→BA', action: 'crt' },
   { group: '操作', label: '复制当前页链接', hint: 'copy url', action: 'copy' },
   { group: '操作', label: '订阅 RSS', hint: '/rss.xml', href: '/rss.xml', external: true },
@@ -235,7 +236,7 @@ const commands = [
     label: string;
     hint: string;
     href?: string;
-    action?: 'theme' | 'copy' | 'ambient' | 'crt';
+    action?: 'theme' | 'copy' | 'ambient' | 'backdrop' | 'crt';
     external?: boolean;
   }
 
@@ -396,6 +397,14 @@ const commands = [
       } else if (c.action === 'crt') {
         this.close();
         document.dispatchEvent(new Event('crt:toggle'));
+      } else if (c.action === 'backdrop') {
+        this.close();
+        if (!document.querySelector('reading-backdrop')) {
+          this.open();
+          this.#status.textContent = '只有文章页有背景图案';
+          return;
+        }
+        document.dispatchEvent(new Event('backdrop:next'));
       } else if (c.action === 'ambient') {
         this.close();
         let off = false;
