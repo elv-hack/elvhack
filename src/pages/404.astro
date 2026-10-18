@@ -4,13 +4,14 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 
 <BaseLayout title="404 · 信号丢失" description="这个页面不存在。">
   <section class="lost">
-    <static-noise aria-hidden="true"><canvas></canvas></static-noise>
+    <ascii-ghost aria-hidden="true"><canvas></canvas></ascii-ghost>
     <div class="container inner">
       <p class="mono code">ERR_SIGNAL_LOST</p>
       <h1>404</h1>
       <p class="msg">信号丢失。你要找的页面不存在，或者已经被移走了。</p>
       <a href="/" class="home mono">← 回到首页</a>
     </div>
+    <p class="credit mono">III · after key art © Konami Digital Entertainment</p>
   </section>
 </BaseLayout>
 
@@ -23,17 +24,23 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     overflow: hidden;
   }
 
-  static-noise {
+  /* 右半边是肖像；窄屏时退到文字后面，淡一些 */
+  ascii-ghost {
     position: absolute;
-    inset: 0;
-    opacity: 0.13;
-    mask-image: radial-gradient(ellipse at 30% 50%, #000 30%, transparent 75%);
+    inset: 0 0 0 42%;
+    mask-image: radial-gradient(ellipse 60% 70% at 50% 50%, #000 55%, transparent 100%);
   }
 
-  static-noise canvas {
+  ascii-ghost canvas {
     width: 100%;
     height: 100%;
-    image-rendering: pixelated;
+  }
+
+  @media (max-width: 760px) {
+    ascii-ghost {
+      inset: 0;
+      opacity: 0.35;
+    }
   }
 
   .inner {
@@ -74,42 +81,172 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     background: var(--fg);
     color: var(--bg);
   }
+
+  .credit {
+    position: absolute;
+    right: var(--space-4);
+    bottom: var(--space-2);
+    font-size: 0.625rem;
+    color: var(--fg-muted);
+    opacity: 0.6;
+  }
 </style>
 
 <script>
-  // 低分辨率电视雪花
-  class StaticNoise extends HTMLElement {
+  import data from '@/data/faces.json';
+
+  /**
+   * 和 GitHub 主页片头同一套字符画（elv-hack/elv-hack 的 scripts/faces.json）：
+   * 三张肖像轮流从暗处浮现（最亮的字符先亮）、停留、再消散（暗部先褪，一边褪一边微微上飘）。
+   * 每张图按亮度拆成 BANDS 层，每层先画进一张离屏 canvas，动画时只按透明度叠这几张，很省。
+   */
+  const RAMP = " .'`,:;-~=+*o%#&@";
+  const BANDS = 6;
+  const SLOT = 10.5;
+  const STAGGER = 0.55;
+  const FADE = 2;
+  const HOLD = 6.5;
+  const STYLE = {
+    ghost: { dark: ['#b9a8ff', '#8a96ff', '#dcb3ff'], light: ['#4a3fc8', '#2f45c2', '#7440c9'], accent: { dark: '#ff5468', light: '#d91f3c' } },
+    crimson: { dark: ['#ff7d93', '#e98ae9', '#ffa47f'], light: ['#b8183e', '#952d9a', '#c24a22'], accent: { dark: '#ffd6dc', light: '#e2436a' } },
+    phantom: { dark: ['#c6d4e4', '#9aa8ff', '#7fe3dc'], light: ['#2c3c54', '#3442b8', '#0f6f77'], accent: { dark: '#ff8a4a', light: '#d65410' } },
+  } as const;
+
+  type Portrait = { id: keyof typeof STYLE; cols: number; rows: number; lines: string[]; acc: [number, number, number][] };
+  const portraits = (data as { portraits: Portrait[] }).portraits;
+
+  const smooth = (t: number) => t * t * (3 - 2 * t);
+  const easeOut = (t: number) => 1 - (1 - t) ** 3;
+  const easeIn = (t: number) => t * t;
+  /** 确定性的伪随机：同一个字符每次分到同一层 */
+  const jitter = (r: number, c: number) => {
+    let h = Math.imul(r * 7919 + c * 104729, 0x9e3779b1);
+    h ^= h >>> 15;
+    return ((h >>> 0) % 1000) / 1000;
+  };
+
+  const isDark = () => {
+    const t = document.documentElement.dataset.theme;
+    return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  };
+
+  class AsciiGhost extends HTMLElement {
     #frame = 0;
+    #layers: HTMLCanvasElement[][] = [];
+    #observers: { disconnect(): void }[] = [];
+    #w = 0;
+    #h = 0;
+    #dpr = 1;
+    #t0 = performance.now();
 
-    connectedCallback() {
+    async connectedCallback() {
       const canvas = this.querySelector('canvas')!;
-      const ctx = canvas.getContext('2d')!;
-      canvas.width = 160;
-      canvas.height = 90;
-      const image = ctx.createImageData(canvas.width, canvas.height);
+      await document.fonts.load('600 10px "JetBrains Mono Variable"').catch(() => {});
       const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-      let last = 0;
-
-      const draw = (now = 0) => {
-        if (now - last > 70) {
-          last = now;
-          const data = image.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const v = Math.random() * 255;
-            data[i] = data[i + 1] = data[i + 2] = v;
-            data[i + 3] = 255;
-          }
-          ctx.putImageData(image, 0, 0);
-        }
-        if (!reduce) this.#frame = requestAnimationFrame(draw);
+      const build = () => {
+        this.#dpr = Math.min(2, devicePixelRatio || 1);
+        this.#w = this.clientWidth;
+        this.#h = this.clientHeight;
+        canvas.width = Math.round(this.#w * this.#dpr);
+        canvas.height = Math.round(this.#h * this.#dpr);
+        this.#layers = portraits.map((p) => this.#render(p));
+        if (reduce) this.#draw(canvas, HOLD / 2);
       };
-      draw();
+      build();
+      const resize = new ResizeObserver(() => build());
+      resize.observe(this);
+      const theme = new MutationObserver(() => build());
+      theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      this.#observers = [resize, theme];
+      if (reduce) return;
+      const loop = (now: number) => {
+        this.#draw(canvas, (now - this.#t0) / 1000);
+        this.#frame = requestAnimationFrame(loop);
+      };
+      this.#frame = requestAnimationFrame(loop);
     }
 
     disconnectedCallback() {
       cancelAnimationFrame(this.#frame);
+      this.#observers.forEach((o) => o.disconnect());
+    }
+
+    /** 一张肖像拆成 BANDS 张离屏 canvas（第 0 层最亮，带强调色） */
+    #render(p: Portrait) {
+      const dark = isDark();
+      const style = STYLE[p.id];
+      const size = Math.min((this.#h * 0.92) / (p.rows * 1.02), (this.#w * 0.95) / (p.cols * 0.6));
+      const cw = size * 0.6;
+      const lh = size * 1.02;
+      const w = p.cols * cw;
+      const h = p.rows * lh;
+      const accent = new Set(p.acc.flatMap(([r, a, b]) => Array.from({ length: b - a }, (_, i) => `${r},${a + i}`)));
+      const layers = Array.from({ length: BANDS }, () => {
+        const c = document.createElement('canvas');
+        c.width = Math.ceil(w * this.#dpr);
+        c.height = Math.ceil(h * this.#dpr);
+        const ctx = c.getContext('2d')!;
+        ctx.scale(this.#dpr, this.#dpr);
+        ctx.font = `600 ${size}px "JetBrains Mono Variable", ui-monospace, monospace`;
+        ctx.textBaseline = 'top';
+        const hues = dark ? style.dark : style.light;
+        const g = ctx.createLinearGradient(0, 0, w, h);
+        hues.forEach((hue, i) => g.addColorStop(i / (hues.length - 1), hue));
+        ctx.fillStyle = g;
+        return c;
+      });
+      const ctxs = layers.map((c) => c.getContext('2d')!);
+      p.lines.forEach((line, r) => {
+        for (let c = 0; c < line.length; c++) {
+          const ch = line[c];
+          if (ch === ' ') continue;
+          if (accent.has(`${r},${c}`)) {
+            const ctx = ctxs[0];
+            ctx.save();
+            ctx.fillStyle = dark ? style.accent.dark : style.accent.light;
+            ctx.fillText(ch, c * cw, r * lh);
+            ctx.restore();
+            continue;
+          }
+          const lvl = RAMP.indexOf(ch) / (RAMP.length - 1);
+          const band = Math.max(0, Math.min(BANDS - 1, Math.floor((1 - lvl) * BANDS + (jitter(r, c) - 0.5) * 1.6)));
+          ctxs[band].fillText(ch, c * cw, r * lh);
+        }
+      });
+      return layers;
+    }
+
+    #draw(canvas: HTMLCanvasElement, t: number) {
+      const ctx = canvas.getContext('2d')!;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const n = this.#layers.length;
+      const C = n * SLOT;
+      this.#layers.forEach((layers, j) => {
+        // 第 j 张在 j·SLOT 时开始浮现；上一轮的尾巴会和下一张的开头叠一小段
+        const local = (((t - j * SLOT) % C) + C) % C;
+        layers.forEach((layer, k) => {
+          const tIn = k * STAGGER;
+          const tOut = HOLD + (BANDS - 1 - k) * STAGGER;
+          let a = 0;
+          let lift = 0;
+          if (local >= tIn && local < tIn + FADE) a = easeOut((local - tIn) / FADE);
+          else if (local >= tIn + FADE && local < tOut) a = 1;
+          else if (local >= tOut && local < tOut + FADE) {
+            const u = (local - tOut) / FADE;
+            a = 1 - easeIn(u);
+            lift = smooth(u) * 6;
+          }
+          if (a <= 0.002) return;
+          ctx.globalAlpha = a;
+          const x = (canvas.width - layer.width) / 2;
+          const y = (canvas.height - layer.height) / 2 - lift * this.#dpr;
+          ctx.drawImage(layer, x, y);
+        });
+      });
+      ctx.globalAlpha = 1;
     }
   }
 
-  if (!customElements.get('static-noise')) customElements.define('static-noise', StaticNoise);
+  if (!customElements.get('ascii-ghost')) customElements.define('ascii-ghost', AsciiGhost);
 </script>
